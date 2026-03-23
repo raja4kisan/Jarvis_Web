@@ -12,7 +12,7 @@ import edge_tts
 import tempfile
 import asyncio
 from openai import AzureOpenAI
-from config import apikey, api_base, api_version, deployment_name, youtube_api_key, weather_api_key, news_api_key
+from config import apikey, api_base, api_version, deployment_name, youtube_api_key, weather_api_key, news_api_key, cricket_api_key
 
 app = FastAPI(title="Jarvis AI API")
 
@@ -128,6 +128,35 @@ async def news_endpoint():
             return {"news": [], "count": 0, "error": "Failed to retrieve news"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cricket/matches")
+async def cricket_endpoint():
+    try:
+        if not cricket_api_key:
+            return {"matches": [], "count": 0, "error": "Cricket API key not configured"}
+            
+        url = f"https://api.cricketdata.org/v1/currentMatches?apikey={cricket_api_key}"
+        resp = requests.get(url)
+        if resp.status_code == 200:
+            data = resp.json()
+            matches = []
+            # Extract relevant info for the UI
+            for match in data.get('data', [])[:5]:
+                matches.append({
+                    "id": match.get("id"),
+                    "name": match.get("name"),
+                    "status": match.get("status"),
+                    "venue": match.get("venue"),
+                    "teams": [match.get("teamInfo", [{}])[0].get("name", "Team 1"), 
+                             match.get("teamInfo", [{}])[1].get("name", "Team 2")] if len(match.get("teamInfo", [])) > 1 else ["Unknown", "Unknown"],
+                    "score": match.get("score", [])
+                })
+            return {"matches": matches, "count": len(matches)}
+        else:
+            return {"matches": [], "count": 0, "error": f"Cricket API error: {resp.status_code}"}
+    except Exception as e:
+        print(f"Cricket Error: {e}")
+        return {"matches": [], "count": 0, "error": str(e)}
 
 @app.post("/youtube/search")
 async def youtube_search(request: YoutubeRequest):
