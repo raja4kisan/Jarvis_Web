@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis AI - Welcome</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Define functions in global scope IMMEDIATELY
+        window.signInWithGoogle = async function() {
+            console.log('signInWithGoogle called');
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) loadingEl.classList.add('active');
+            
+            if (!window.supabaseClient) {
+                alert('Authentication system is loading. Please wait a moment and try again.');
+                if (loadingEl) loadingEl.classList.remove('active');
+                return;
+            }
+
+            try {
+                const { data, error } = await window.supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.origin + '/chat'
+                    }
+                });
+
+                if (error) {
+                    console.error('Error signing in:', error);
+                    alert('Error signing in: ' + error.message);
+                    if (loadingEl) loadingEl.classList.remove('active');
+                }
+            } catch (err) {
+                console.error('Exception during sign in:', err);
+                alert('Error signing in. Please try again.');
+                if (loadingEl) loadingEl.classList.remove('active');
+            }
+        };
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .landing-container {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 40px;
+            max-width: 600px;
+        }
+
+        .logo-container {
+            margin-bottom: 40px;
+            animation: floatAnimation 3s ease-in-out infinite;
+        }
+
+        @keyframes floatAnimation {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .jarvis-logo {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .circle-outer {
+            width: 200px;
+            height: 200px;
+            border: 3px solid #00d4ff;
+            border-radius: 50%;
+            position: absolute;
+            animation: rotateOuter 10s linear infinite;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+        }
+
+        .circle-middle {
+            width: 150px;
+            height: 150px;
+            border: 2px solid #00d4ff;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: rotateMiddle 8s linear infinite reverse;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+        }
+
+        .circle-inner {
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, #00d4ff 0%, #0077ff 100%);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 2s ease-in-out infinite;
+            box-shadow: 0 0 40px rgba(0, 212, 255, 0.8);
+        }
+
+        @keyframes rotateOuter {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes rotateMiddle {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { 
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            50% { 
+                transform: translate(-50%, -50%) scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
+        .core-dot {
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.9);
+        }
+
+        h1 {
+            color: #00d4ff;
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            animation: glowText 2s ease-in-out infinite;
+        }
+
+        @keyframes glowText {
+            0%, 100% { text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
+            50% { text-shadow: 0 0 30px rgba(0, 212, 255, 0.8); }
+        }
+
+        .subtitle {
+            color: #b8c6db;
+            font-size: 20px;
+            margin-bottom: 50px;
+            font-weight: 300;
+        }
+
+        .sign-in-btn {
+            background: linear-gradient(135deg, #00d4ff 0%, #0077ff 100%);
+            color: white;
+            border: none;
+            padding: 18px 50px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sign-in-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 212, 255, 0.5);
+        }
+
+        .sign-in-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .google-icon {
+            width: 24px;
+            height: 24px;
+            background: white;
+            border-radius: 4px;
+            padding: 4px;
+        }
+
+        .loading {
+            display: none;
+            color: #00d4ff;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 60px;
+            flex-wrap: wrap;
+        }
+
+        .feature {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            width: 150px;
+            transition: all 0.3s ease;
+        }
+
+        .feature:hover {
+            background: rgba(0, 212, 255, 0.2);
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .feature-text {
+            color: #b8c6db;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated stars background -->
+    <div class="stars" id="stars"></div>
+
+    <div class="landing-container">
+        <!-- Animated Jarvis Logo -->
+        <div class="logo-container">
+            <div class="jarvis-logo">
+                <div class="circle-outer"></div>
+                <div class="circle-middle"></div>
+                <div class="circle-inner"></div>
+                <div class="core-dot"></div>
+            </div>
+        </div>
+
+        <!-- Title -->
+        <h1>JARVIS</h1>
+        <p class="subtitle">Your Personal AI Assistant</p>
+
+        <!-- Google Sign-In Button -->
+        <button class="sign-in-btn" onclick="signInWithGoogle()">
+            <svg class="google-icon" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Sign in with Google
+        </button>
+
+        <div class="loading" id="loading">Authenticating...</div>
+
+        <!-- Features -->
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🤖</div>
+                <div class="feature-text">AI Powered</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">💬</div>
+                <div class="feature-text">Natural Chat</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-text">Fast Response</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase configuration
+        const SUPABASE_URL = 'https://roanczxtxlzovyesssge.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvYW5jenh0eGx6b3Z5ZXNzc2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDc2MzIsImV4cCI6MjA4OTgyMzYzMn0.BXEIzm0MJqdDT1O6OkzeqdM2RoMy7SmTExxrq98e7sY';
+        
+        // Wait for page to load
+        window.addEventListener('DOMContentLoaded', function() {
+            // Initialize Supabase after page loads
+            try {
+                if (window.supabase && window.supabase.createClient) {
+                    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.log('Supabase initialized successfully');
+                    
+                    // Initialize app
+                    createStars();
+                    checkAuth();
+                    
+                    // Listen for auth state changes
+                    window.supabaseClient.auth.onAuthStateChange((event, session) => {
+                        if (event === 'SIGNED_IN' && session) {
+                            window.location.href = '/chat';
+                        }
+                    });
+                } else {
+                    console.error('Supabase library not loaded');
+                    alert('Failed to load authentication library. Please refresh the page.');
+                }
+            } catch (error) {
+                console.error('Error initializing Supabase:', error);
+                alert('Failed to initialize. Please refresh the page.');
+            }
+        });
+
+        // Create animated stars
+        function createStars() {
+            const starsContainer = document.getElementById('stars');
+            const starCount = 100;
+            
+            for (let i = 0; i < starCount; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.animationDelay = Math.random() * 3 + 's';
+                starsContainer.appendChild(star);
+            }
+        }
+
+        // Check if user is already signed in
+        async function checkAuth() {
+            if (!window.supabaseClient) return;
+            
+            try {
+                const { data: { session } } = await window.supabaseClient.auth.getSession();
+                if (session) {
+                    // User is already signed in, redirect to chat
+                    window.location.href = '/chat';
+                }
+            } catch (error) {
+                console.error('Error checking auth:', error);
+            }
+        }
+    </script>
+</body>
+</html>

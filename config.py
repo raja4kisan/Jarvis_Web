@@ -28,3 +28,8 @@ openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
 
 # Cricket API Key (cricketdata.org)
 cricket_api_key = os.getenv("CRICKET_API_KEY", "")
+
+# Supabase Configuration
+supabase_url = os.getenv("SUPABASE_URL", "")
+supabase_key = os.getenv("SUPABASE_KEY", "")
+supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY", "")

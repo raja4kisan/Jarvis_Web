@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis AI Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+        }
+
+        .sidebar h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .widget {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .widget h4 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .widget p {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            max-width: 70%;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .message.user .avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .message.assistant .avatar {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 12px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: #f0f2f5;
+            color: #333;
+        }
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            background: #f8f9fa;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #messageInput:focus {
+            border-color: #667eea;
+        }
+
+        #messageInput:disabled {
+            background-color: #f0f2f5;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .btn-send {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-send:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-voice {
+            padding: 12px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+            margin-left: 10px;
+        }
+
+        .btn-voice:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-voice.listening {
+            background: #f44336;
+            animation: pulse 1.5s infinite;
+        }
+
+        .btn-voice.speaking {
+            background: #FF9800;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        .loading {
+            display: none;
+            padding: 12px 16px;
+            background: #f0f2f5;
+            border-radius: 12px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 200px;
+            }
+
+            .message {
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Jarvis AI Assistant</h1>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="toggleAutoSpeak()">
+                    🔊 Voice: <span id="voiceStatus">ON</span>
+                </button>
+                <button class="btn btn-primary" onclick="toggleLanguage()">
+                    Language: <span id="currentLang">English</span>
+                </button>
+                <button class="btn btn-primary" onclick="clearChat()">Clear Chat</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>⚡ Quick Actions</h3>
+                
+                <div class="widget">
+                    <h4>🌤️ Weather</h4>
+                    <input type="text" id="cityInput" placeholder="Enter city..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px;">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="getWeather()">Get Weather</button>
+                    <div id="weatherInfo" style="margin-top: 10px;"></div>
+                </div>
+
+                <div class="widget">
+                    <h4>📰 Latest News</h4>
+                    <button class="btn btn-primary" style="width: 100%;" onclick="getNews()">Fetch News</button>
+                    <div id="newsInfo" style="margin-top: 10px;"></div>
+                </div>
+
+                <div class="widget">
+                    <h4>� Cricket Live Scores</h4>
+                    <button class="btn btn-primary" style="width: 100%;" onclick="getCricketMatches()">Get Live Matches</button>
+                    <div id="cricketInfo" style="margin-top: 10px; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+
+                <div class="widget">
+                    <h4>�🎵 YouTube Search</h4>
+                    <input type="text" id="youtubeQuery" placeholder="Search..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px;">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="searchYoutube()">Search</button>
+                </div>
+
+                <div class="widget">
+                    <h4>⏰ Current Time</h4>
+                    <p id="currentTime">--:--</p>
+                </div>
+            </div>
+
+            <div class="chat-area">
+                <div class="messages" id="messages">
+                    <div class="message assistant">
+                        <div class="avatar">J</div>
+                        <div class="message-content">
+                            Hello! I'm Jarvis, your AI assistant. You can type or click the 🎤 microphone button to speak with me. How can I help you today?
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <div class="input-container">
+                        <input 
+                            type="text" 
+                            id="messageInput" 
+                            placeholder="Type your message or click the mic..."
+                            onkeypress="handleKeyPress(event)"
+                        >
+                        <button class="btn-voice" id="voiceBtn" onclick="toggleVoiceInput()" title="Voice Input">
+                            🎤
+                        </button>
+                        <button class="btn-send" id="sendBtn" onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentLanguage = 'en';
+        let recognition = null;
+        let isListening = false;
+        let isSpeaking = false;
+        let autoSpeak = true; // Auto-play voice responses
+        let voiceMode = false; // Continuous voice conversation mode
+
+        // Initialize Speech Recognition
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                isListening = true;
+                const voiceBtn = document.getElementById('voiceBtn');
+                voiceBtn.classList.add('listening');
+                voiceBtn.textContent = '🔴';
+                addMessage('🎤 Listening... Speak now!', 'assistant');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('messageInput').value = transcript;
+                addMessage(`You said: ${transcript}`, 'user');
+                
+                // Automatically send the message
+                setTimeout(() => {
+                    sendMessage(true); // true = voice mode
+                }, 500);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                resetVoiceButton();
+                if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    addMessage(`⚠️ Voice error: ${event.error}`, 'assistant');
+                }
+                
+                // Restart listening if in continuous voice mode and error is not critical
+                if (voiceMode && event.error === 'no-speech') {
+                    setTimeout(() => {
+                        if (voiceMode && !isListening && !isSpeaking) {
+                            startListening();
+                        }
+                    }, 1000);
+                }
+            };
+
+            recognition.onend = () => {
+                resetVoiceButton();
+                
+                // Restart listening if in continuous voice mode
+                if (voiceMode && !isListening && !isSpeaking) {
+                    setTimeout(() => {
+                        if (voiceMode) {
+                            startListening();
+                        }
+                    }, 500);
+                }
+            };
+        }
+
+        function resetVoiceButton() {
+            isListening = false;
+            const voiceBtn = document.getElementById('voiceBtn');
+            if (voiceMode) {
+                voiceBtn.classList.remove('listening');
+                voiceBtn.classList.add('speaking');
+                voiceBtn.textContent = '🔴';
+                voiceBtn.title = 'Voice Mode Active - Click to switch to Text';
+            } else {
+                voiceBtn.classList.remove('listening', 'speaking');
+                voiceBtn.textContent = '🎤';
+                voiceBtn.title = 'Click to activate Voice Mode';
+            }
+        }
+
+        function startListening() {
+            if (!recognition || isListening || isSpeaking) return;
+            
+            try {
+                recognition.lang = currentLanguage === 'hi' ? 'hi-IN' : 'en-US';
+                recognition.start();
+            } catch (e) {
+                console.error('Failed to start recognition:', e);
+            }
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                alert('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
+                return;
+            }
+
+            if (voiceMode) {
+                // Switch to text mode
+                voiceMode = false;
+                if (isListening) {
+                    recognition.stop();
+                }
+                resetVoiceButton();
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('messageInput').placeholder = 'Type your message or click the mic...';
+                document.getElementById('sendBtn').disabled = false;
+                addMessage('📝 Switched to Text Mode. Type your messages.', 'assistant');
+            } else {
+                // Switch to voice mode
+                voiceMode = true;
+                document.getElementById('messageInput').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('messageInput').placeholder = 'Voice Mode Active - Speak your message...';
+                resetVoiceButton();
+                addMessage('🎤 Voice Mode Activated! Speak continuously. Click the mic again to switch back to text.', 'assistant');
+                
+                // Start listening immediately
+                setTimeout(() => {
+                    startListening();
+                }, 1000);
+            }
+        }
+
+        async function speakText(text) {
+            if (!autoSpeak || isSpeaking) return;
+
+            isSpeaking = true;
+            const voiceBtn = document.getElementById('voiceBtn');
+            voiceBtn.classList.add('speaking');
+            voiceBtn.textContent = '🔊';
+
+            try {
+                // Use TTS endpoint from API
+                const response = await fetch(`${API_BASE}/tts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        message: text,
+                        language: currentLanguage 
+                    })
+                });
+
+                if (response.ok) {
+                    const audioBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+                    
+                    audio.onended = () => {
+                        isSpeaking = false;
+                        voiceBtn.classList.remove('speaking');
+                        if (!voiceMode) {
+                            voiceBtn.textContent = '🎤';
+                        }
+                        URL.revokeObjectURL(audioUrl);
+                        
+                        // Restart listening if in voice mode
+                        if (voiceMode) {
+                            setTimeout(() => {
+                                startListening();
+                            }, 500);
+                        }
+                    };
+                    
+                    audio.onerror = () => {
+                        isSpeaking = false;
+                        voiceBtn.classList.remove('speaking');
+                        if (!voiceMode) {
+                            voiceBtn.textContent = '🎤';
+                        }
+                        
+                        // Restart listening if in voice mode
+                        if (voiceMode) {
+                            setTimeout(() => {
+                                startListening();
+                            }, 500);
+                        }
+                    };
+                    
+                    await audio.play();
+                } else {
+                    throw new Error('TTS failed');
+                }
+            } catch (error) {
+                console.error('TTS Error:', error);
+                isSpeaking = false;
+                voiceBtn.classList.remove('speaking');
+                voiceBtn.textContent = '🎤';
+                
+                // Fallback to browser's built-in speech synthesis
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = currentLanguage === 'hi' ? 'hi-IN' : 'en-US';
+                    utterance.onend = () => {
+                        isSpeaking = false;
+                        voiceBtn.classList.remove('speaking');
+                        if (!voiceMode) {
+                            voiceBtn.textContent = '🎤';
+                        }
+                        
+                        // Restart listening if in voice mode
+                        if (voiceMode) {
+                            setTimeout(() => {
+                                startListening();
+                            }, 500);
+                        }
+                    };
+                    speechSynthesis.speak(utterance);
+                }
+            }
+        }
+
+        // Update time every second
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+        }, 1000);
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !voiceMode) {
+                sendMessage();
+            }
+        }
+
+        async function sendMessage(voiceMode = false) {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Add user message (only if not already added by voice)
+            if (!voiceMode) {
+                addMessage(message, 'user');
+            }
+            input.value = '';
+
+            // Disable send button
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+
+            // Show loading
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading active';
+            loadingDiv.textContent = 'Jarvis is thinking...';
+            loadingDiv.id = 'loading';
+            document.getElementById('messages').appendChild(loadingDiv);
+            scrollToBottom();
+
+            try {
+                // Check for special commands FIRST
+                const lowerMsg = message.toLowerCase();
+                
+                // Check for weather commands
+                if (lowerMsg.includes('weather') || lowerMsg.includes('temperature') || lowerMsg.includes('forecast') || 
+                    lowerMsg.includes('climate') || (lowerMsg.includes('how') && (lowerMsg.includes('hot') || lowerMsg.includes('cold') || lowerMsg.includes('rain')))) {
+                    // Extract city name
+                    let city = 'Delhi'; // default
+                    const cityMatches = message.match(/(?:in|for|of|at)\s+([a-zA-Z\s]+)/i);
+                    if (cityMatches && cityMatches[1]) {
+                        city = cityMatches[1].trim();
+                    }
+                    await showWeather(city, voiceMode);
+                    return;
+                }
+                
+                // Check for news commands
+                if (lowerMsg.includes('news') || lowerMsg.includes('headlines') || lowerMsg.includes('breaking') || 
+                    (lowerMsg.includes('latest') && (lowerMsg.includes('update') || lowerMsg.includes('event'))) ||
+                    (lowerMsg.includes('current') && (lowerMsg.includes('event') || lowerMsg.includes('affair')))) {
+                    await showNews(voiceMode);
+                    return;
+                }
+                
+                // Check for YouTube/Music play commands
+                if (lowerMsg.includes('play') && (lowerMsg.includes('song') || lowerMsg.includes('music') || lowerMsg.includes('video') || lowerMsg.includes('youtube') || lowerMsg.includes('track') || lowerMsg.includes('title'))) {
+                    // Extract song/video name
+                    let query = message.replace(/play|song|music|video|youtube|track|title|the|a/gi, '').trim();
+                    if (query.length > 2) {
+                        await playYouTubeVideo(query, voiceMode);
+                        return;
+                    }
+                }
+                
+                // Check for cricket score commands
+                if ((lowerMsg.includes('cricket') || lowerMsg.includes('match') || lowerMsg.includes('score') || lowerMsg.includes('vs') || lowerMsg.includes('versus')) && 
+                    (lowerMsg.includes('live') || lowerMsg.includes('score') || lowerMsg.includes('match') || lowerMsg.includes('india') || lowerMsg.includes('ipl') || lowerMsg.includes('australia') || lowerMsg.includes('england') || lowerMsg.includes('pakistan') || lowerMsg.includes('new zealand') || lowerMsg.includes('south africa') || lowerMsg.includes('newzealand'))) {
+                    await showCricketScores(voiceMode);
+                    return;
+                }
+                
+                // Regular chat
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get response');
+                }
+
+                const data = await response.json();
+                
+                // Remove loading
+                document.getElementById('loading')?.remove();
+                
+                // Add assistant message
+                addMessage(data.response, 'assistant');
+                
+                // Speak the response if voice mode is enabled
+                if (voiceMode && autoSpeak) {
+                    await speakText(data.response);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading')?.remove();
+                const errorMsg = 'Sorry, I encountered an error. Please make sure the API server is running.';
+                addMessage(errorMsg, 'assistant');
+                if (voiceMode && autoSpeak) {
+                    await speakText(errorMsg);
+                }
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function playYouTubeVideo(query, voiceMode = false) {
+            try {
+                const response = await fetch(`${API_BASE}/youtube/play`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                document.getElementById('loading')?.remove();
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const msg = `Opening YouTube: ${data.video.title}`;
+                    addMessage(msg, 'assistant');
+                    if (voiceMode && autoSpeak) {
+                        await speakText(msg);
+                    }
+                } else {
+                    const msg = 'Sorry, I couldn\'t find that video on YouTube.';
+                    addMessage(msg, 'assistant');
+                    if (voiceMode && autoSpeak) {
+                        await speakText(msg);
+                    }
+                }
+            } catch (error) {
+                document.getElementById('loading')?.remove();
+                console.error('Error:', error);
+                addMessage('Error playing video', 'assistant');
+            }
+        }
+
+        async function showCricketScores(voiceMode = false) {
+            try {
+                const response = await fetch(`${API_BASE}/cricket/matches`);
+                document.getElementById('loading')?.remove();
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.matches && data.matches.length > 0) {
+                        // Show first 3 matches in chat
+                        let msg = `Found ${data.count} live cricket matches:\\n\\n`;
+                        
+                        data.matches.slice(0, 3).forEach((match, index) => {
+                            const teams = Array.isArray(match.teams) ? match.teams.join(' vs ') : 'Unknown teams';
+                            const scoreDisplay = formatCricketScore(match.score);
+                            msg += `${index + 1}. ${teams}\\n   ${scoreDisplay}\\n   Status: ${match.status}\\n\\n`;
+                        });
+                        
+                        msg += 'Check the sidebar for more details!';
+                        addMessage(msg, 'assistant');
+                        
+                        // Also update sidebar
+                        await getCricketMatches();
+                        
+                        if (voiceMode && autoSpeak) {
+                            await speakText(`Found ${data.count} live cricket matches. Check the sidebar for scores.`);
+                        }
+                    } else {
+                        const msg = 'No live cricket matches at the moment.';
+                        addMessage(msg, 'assistant');
+                        if (voiceMode && autoSpeak) {
+                            await speakText(msg);
+                        }
+                    }
+                } else {
+                    addMessage('Error fetching cricket scores', 'assistant');
+                }
+            } catch (error) {
+                document.getElementById('loading')?.remove();
+                console.error('Error:', error);
+                addMessage('Error fetching cricket scores', 'assistant');
+            }
+        }
+
+        async function showWeather(city, voiceMode = false) {
+            try {
+                const response = await fetch(`${API_BASE}/weather`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ city: city })
+                });
+
+                document.getElementById('loading')?.remove();
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.city && data.temperature) {
+                        const msg = `Weather update for ${data.city}:\\n🌡️ Temperature: ${data.temperature}°C\\n☁️ Condition: ${data.condition}`;
+                        addMessage(msg, 'assistant');
+                        
+                        // Update sidebar widget too
+                        const weatherInfo = document.getElementById('weatherInfo');
+                        if (weatherInfo) {
+                            weatherInfo.innerHTML = `
+                                <p style="font-weight: bold; color: #333;">${data.city}</p>
+                                <p style="color: #666;">${data.temperature}°C</p>
+                                <p style="color: #666; font-size: 11px;">${data.condition}</p>
+                            `;
+                        }
+                        
+                        if (voiceMode && autoSpeak) {
+                            await speakText(`The weather in ${data.city} is ${data.temperature} degrees celsius with ${data.condition}.`);
+                        }
+                    } else {
+                        const msg = `Sorry, I couldn't fetch weather information for ${city}. Please try again.`;
+                        addMessage(msg, 'assistant');
+                        if (voiceMode && autoSpeak) {
+                            await speakText(msg);
+                        }
+                    }
+                } else {
+                    const msg = `Unable to get weather information for ${city}.`;
+                    addMessage(msg, 'assistant');
+                    if (voiceMode && autoSpeak) {
+                        await speakText(msg);
+                    }
+                }
+            } catch (error) {
+                document.getElementById('loading')?.remove();
+                console.error('Error:', error);
+                addMessage('Error fetching weather information', 'assistant');
+            }
+        }
+
+        async function showNews(voiceMode = false) {
+            try {
+                const response = await fetch(`${API_BASE}/news`);
+                
+                document.getElementById('loading')?.remove();
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.news && data.news.length > 0) {
+                        // Show top 3 news headlines in chat
+                        let msg = `Here are the top headlines:\\n\\n`;
+                        
+                        data.news.slice(0, 3).forEach((article, index) => {
+                            msg += `${index + 1}. ${article.title}\\n`;
+                            if (article.description) {
+                                msg += `   ${article.description.substring(0, 100)}...\\n`;
+                            }
+                            msg += `\\n`;
+                        });
+                        
+                        msg += 'Check the sidebar for more news!';
+                        addMessage(msg, 'assistant');
+                        
+                        // Update sidebar widget too
+                        const newsInfo = document.getElementById('newsInfo');
+                        if (newsInfo) {
+                            newsInfo.innerHTML = data.news.slice(0, 5).map(article => 
+                                `<p style="font-size: 11px; margin-bottom: 8px; color: #333;">• ${article.title}</p>`
+                            ).join('');
+                        }
+                        
+                        if (voiceMode && autoSpeak) {
+                            await speakText(`I've loaded the latest news headlines. Check the chat and sidebar for details.`);
+                        }
+                    } else {
+                        const msg = 'No news available at the moment.';
+                        addMessage(msg, 'assistant');
+                        if (voiceMode && autoSpeak) {
+                            await speakText(msg);
+                        }
+                    }
+                } else {
+                    const msg = 'Unable to fetch news at the moment.';
+                    addMessage(msg, 'assistant');
+                    if (voiceMode && autoSpeak) {
+                        await speakText(msg);
+                    }
+                }
+            } catch (error) {
+                document.getElementById('loading')?.remove();
+                console.error('Error:', error);
+                addMessage('Error fetching news', 'assistant');
+            }
+        }
+
+        function addMessage(text, sender) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.textContent = sender === 'user' ? 'U' : 'J';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            
+            // Handle newlines by converting to HTML
+            if (text.includes('\\n')) {
+                content.innerHTML = text.replace(/\\n/g, '<br>');
+            } else {
+                content.textContent = text;
+            }
+            
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(content);
+            messagesDiv.appendChild(messageDiv);
+            
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const messages = document.getElementById('messages');
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function toggleLanguage() {
+            currentLanguage = currentLanguage === 'en' ? 'hi' : 'en';
+            const langName = currentLanguage === 'en' ? 'English' : 'Hindi';
+            document.getElementById('currentLang').textContent = langName;
+
+            try {
+                await fetch(`${API_BASE}/language`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ language: currentLanguage })
+                });
+                
+                addMessage(`Language switched to ${langName}`, 'assistant');
+            } catch (error) {
+                console.error('Error switching language:', error);
+            }
+        }
+
+        function toggleAutoSpeak() {
+            autoSpeak = !autoSpeak;
+            const status = autoSpeak ? 'ON' : 'OFF';
+            document.getElementById('voiceStatus').textContent = status;
+            addMessage(`Voice responses ${status}`, 'assistant');
+        }
+
+        async function getWeather() {
+            const city = document.getElementById('cityInput').value.trim() || 'Delhi';
+            const weatherInfo = document.getElementById('weatherInfo');
+            weatherInfo.innerHTML = '<p style="color: #667eea;">Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/weather`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ city: city })
+                });
+
+                const data = await response.json();
+                
+                if (data.city && data.temperature) {
+                    weatherInfo.innerHTML = `
+                        <p style="font-weight: bold; color: #333;">${data.city}</p>
+                        <p style="color: #666;">${data.temperature}°C</p>
+                        <p style="color: #666; font-size: 11px;">${data.condition}</p>
+                    `;
+                    addMessage(`Weather in ${data.city}: ${data.temperature}°C, ${data.condition}`, 'assistant');
+                } else {
+                    weatherInfo.innerHTML = '<p style="color: red;">Failed to get weather</p>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                weatherInfo.innerHTML = '<p style="color: red;">Error</p>';
+            }
+        }
+
+        async function getNews() {
+            const newsInfo = document.getElementById('newsInfo');
+            newsInfo.innerHTML = '<p style="color: #667eea;">Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/news`);
+                const data = await response.json();
+                
+                if (data.news && data.news.length > 0) {
+                    const topNews = data.news.slice(0, 3);
+                    newsInfo.innerHTML = topNews.map(article => 
+                        `<p style="font-size: 11px; margin-bottom: 8px; color: #333;">• ${article.title}</p>`
+                    ).join('');
+                    
+                    addMessage(`Top news headlines loaded. Check the sidebar for details.`, 'assistant');
+                } else {
+                    newsInfo.innerHTML = '<p style="color: red;">No news available</p>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                newsInfo.innerHTML = '<p style="color: red;">Error</p>';
+            }
+        }
+
+        async function getCricketMatches() {
+            const cricketInfo = document.getElementById('cricketInfo');
+            cricketInfo.innerHTML = '<p style="color: #667eea;">Loading cricket matches...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/cricket/matches`);
+                const data = await response.json();
+                
+                if (data.matches && data.matches.length > 0) {
+                    const topMatches = data.matches.slice(0, 5);
+                    cricketInfo.innerHTML = topMatches.map(match => {
+                        const teams = Array.isArray(match.teams) ? match.teams.join(' vs ') : 'Unknown teams';
+                        const scoreDisplay = formatCricketScore(match.score);
+                        
+                        return `
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid #667eea;">
+                                <p style="font-size: 11px; font-weight: 600; color: #667eea; margin-bottom: 5px;">${teams}</p>
+                                <p style="font-size: 10px; color: #666; margin-bottom: 3px;">${scoreDisplay}</p>
+                                <p style="font-size: 9px; color: #28a745; font-weight: 500;">${match.status || 'Live'}</p>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    addMessage(`Found ${data.count} live cricket matches! Check the sidebar for scores.`, 'assistant');
+                } else {
+                    cricketInfo.innerHTML = '<p style="color: #999; font-size: 11px;">No live matches at the moment</p>';
+                    addMessage('No live cricket matches at the moment.', 'assistant');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                cricketInfo.innerHTML = '<p style="color: red; font-size: 11px;">Error loading matches</p>';
+            }
+        }
+
+        function formatCricketScore(score) {
+            if (!score || score.length === 0) return 'Score not available';
+            
+            if (Array.isArray(score)) {
+                return score.map(inning => {
+                    if (inning.r !== undefined) {
+                        return `${inning.r}/${inning.w || 0} (${inning.o || 0})`;
+                    }
+                    return '';
+                }).filter(s => s).join(' | ');
+            }
+            
+            return typeof score === 'string' ? score : 'Score not available';
+        }
+
+        async function searchYoutube() {
+            const query = document.getElementById('youtubeQuery').value.trim();
+            if (!query) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/youtube/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await response.json();
+                
+                if (data.videos && data.videos.length > 0) {
+                    const topVideo = data.videos[0];
+                    const url = topVideo.url;
+                    addMessage(`Found: ${topVideo.title}\n${url}`, 'assistant');
+                    window.open(url, '_blank');
+                } else {
+                    addMessage('No videos found', 'assistant');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Error searching YouTube', 'assistant');
+            }
+        }
+
+        function clearChat() {
+            const messages = document.getElementById('messages');
+            messages.innerHTML = `
+                <div class="message assistant">
+                    <div class="avatar">J</div>
+                    <div class="message-content">
+                        Chat cleared. You can type or click the 🎤 microphone to speak. How can I help you?
+                    </div>
+                </div>
+            `;
+        }
+
+        // Check API status on load
+        window.onload = async () => {
+            try {
+                const response = await fetch(`${API_BASE}/`);
+                if (response.ok) {
+                    console.log('API is running');
+                }
+            } catch (error) {
+                addMessage('⚠️ Warning: Cannot connect to API server. Please make sure the backend is running on http://localhost:8000', 'assistant');
+            }
+        };
+    </script>
+</body>
+</html>

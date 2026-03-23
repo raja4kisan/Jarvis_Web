@@ -11,9 +11,22 @@ from typing import Optional, List
 import edge_tts
 import tempfile
 import asyncio
-from openai import AzureOpenAI
+from openai import OpenAI
 import logging
-from config import apikey, api_base, api_version, deployment_name, youtube_api_key, weather_api_key, news_api_key, cricket_api_key
+from config import apikey, api_base, api_version, deployment_name, youtube_api_key, weather_api_key, news_api_key, cricket_api_key, openrouter_api_key, supabase_url, supabase_key, supabase_service_key
+
+# Gmail API imports
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request as GoogleRequest
+from googleapiclient.discovery import build
+import base64
+import pickle
+
+# Supabase imports
+from supabase import create_client, Client
+from jose import jwt, JWTError
+import json
 
 # Configure logging to show in Railway logs
 logging.basicConfig(level=logging.INFO)
@@ -30,12 +43,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Azure OpenAI client
-client = AzureOpenAI(
-    api_key=apikey,
-    api_version=api_version,
-    azure_endpoint=api_base
+# Initialize OpenRouter client (OpenAI-compatible API)
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=openrouter_api_key
 )
+
+# Initialize Supabase client
+supabase: Client = None
+if supabase_url and supabase_key:
+    try:
+        supabase = create_client(supabase_url, supabase_key)
+        logger.info("Supabase client initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Supabase: {e}")
+else:
+    logger.warning("Supabase credentials not configured")
 
 # Models
 class ChatRequest(BaseModel):
@@ -53,43 +76,360 @@ class TTSRequest(BaseModel):
     message: str
     language: Optional[str] = "en"
 
+class AuthRequest(BaseModel):
+    access_token: str
+
+class ChatRequestAuth(BaseModel):
+    message: str
+    access_token: str
+    session_id: Optional[str] = None
+    language: Optional[str] = "en"
+
+class NewSessionRequest(BaseModel):
+    title: Optional[str] = "New Chat"
+
 # Global context memory (Simulated for single user, recommend Redis for multi-user)
 chat_history = []
 
+# Helper function to verify Supabase JWT token
+def verify_token(token: str):
+    """Verify Supabase JWT token and return user data"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    
+    try:
+        # Verify token with Supabase
+        user_response = supabase.auth.get_user(token)
+        if user_response and user_response.user:
+            return user_response.user
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        logger.error(f"Token verification error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
+# Gmail API Configuration
+GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+def authenticate_gmail():
+    """Authenticate with Gmail API using OAuth2"""
+    creds = None
+    token_path = 'token.json'
+    credentials_path = 'credentials.json'
+    
+    # Check if token.json exists
+    if os.path.exists(token_path):
+        try:
+            creds = Credentials.from_authorized_user_file(token_path, GMAIL_SCOPES)
+        except Exception as e:
+            logger.error(f"Error loading token.json: {e}")
+            creds = None
+    
+    # If no valid credentials, authenticate
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(GoogleRequest())
+                logger.info("Gmail token refreshed successfully")
+            except Exception as e:
+                logger.error(f"Error refreshing token: {e}")
+                creds = None
+        
+        if not creds:
+            if not os.path.exists(credentials_path):
+                logger.error("credentials.json not found. Please follow GMAIL_SETUP_GUIDE.md")
+                return None
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file(credentials_path, GMAIL_SCOPES)
+                creds = flow.run_local_server(port=0)
+                logger.info("Gmail OAuth flow completed successfully")
+            except Exception as e:
+                logger.error(f"OAuth flow error: {e}")
+                return None
+        
+        # Save credentials for next run
+        try:
+            with open(token_path, 'w') as token:
+                token.write(creds.to_json())
+            logger.info("Gmail credentials saved to token.json")
+        except Exception as e:
+            logger.error(f"Error saving token: {e}")
+    
+    return creds
+
+def read_gmail_emails(max_results=10, query=""):
+    """Read emails from Gmail inbox"""
+    try:
+        creds = authenticate_gmail()
+        if not creds:
+            return {"emails": [], "error": "Gmail authentication failed. Please follow GMAIL_SETUP_GUIDE.md"}
+        
+        service = build('gmail', 'v1', credentials=creds)
+        
+        # Get messages
+        results = service.users().messages().list(
+            userId='me', 
+            maxResults=max_results,
+            q=query
+        ).execute()
+        
+        messages = results.get('messages', [])
+        
+        if not messages:
+            return {"emails": [], "count": 0, "message": "No emails found"}
+        
+        emails = []
+        for msg in messages:
+            try:
+                message = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
+                
+                # Extract headers
+                headers = message['payload']['headers']
+                subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
+                sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
+                date = next((h['value'] for h in headers if h['name'].lower() == 'date'), '')
+                
+                # Check if unread
+                labels = message.get('labelIds', [])
+                is_unread = 'UNREAD' in labels
+                
+                # Get snippet (preview)
+                snippet = message.get('snippet', '')
+                
+                emails.append({
+                    "id": msg['id'],
+                    "subject": subject,
+                    "from": sender,
+                    "date": date,
+                    "snippet": snippet,
+                    "unread": is_unread
+                })
+            except Exception as e:
+                logger.error(f"Error processing email {msg['id']}: {e}")
+                continue
+        
+        return {"emails": emails, "count": len(emails)}
+    
+    except Exception as e:
+        logger.error(f"Gmail API error: {e}")
+        return {"emails": [], "error": str(e)}
+
 @app.get("/")
 async def root():
+    """Serve landing page with Google Sign-In"""
+    index_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {
-        "message": "Jarvis AI is running!",
+        "message": "Jarvis AI Landing Page",
         "status": "online",
-        "version": "1.1.0"
+        "error": "Landing page not found"
     }
+
+@app.get("/chat")
+async def chat_interface():
+    """Serve main Jarvis chat interface (requires authentication)"""
+    web_ui_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web-ui.html")
+    if os.path.exists(web_ui_path):
+        return FileResponse(web_ui_path)
+    raise HTTPException(status_code=404, detail="Chat interface not found")
 
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
 
+# ============ AUTHENTICATION ENDPOINTS ============
+
+@app.post("/auth/verify")
+async def verify_auth(auth_request: AuthRequest):
+    """Verify user authentication token"""
+    try:
+        user = verify_token(auth_request.access_token)
+        return {
+            "authenticated": True,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "user_metadata": user.user_metadata
+            }
+        }
+    except HTTPException as e:
+        return {"authenticated": False, "error": str(e.detail)}
+
+@app.post("/auth/google")
+async def google_auth():
+    """Initiate Google OAuth flow - returns Supabase auth URL"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    
+    try:
+        # Return auth config for frontend to handle
+        return {
+            "provider": "google",
+            "supabase_url": supabase_url,
+            "message": "Use Supabase client on frontend to sign in with Google"
+        }
+    except Exception as e:
+        logger.error(f"Google auth error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ CHAT SESSION ENDPOINTS ============
+
+@app.post("/sessions/new")
+async def create_session(auth_request: AuthRequest, session_data: NewSessionRequest):
+    """Create a new chat session"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    
+    try:
+        user = verify_token(auth_request.access_token)
+        
+        # Create new chat session
+        response = supabase.table("chat_sessions").insert({
+            "user_id": user.id,
+            "title": session_data.title
+        }).execute()
+        
+        return {"session": response.data[0]}
+    except Exception as e:
+        logger.error(f"Session creation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions")
+async def get_sessions(access_token: str):
+    """Get all chat sessions for authenticated user"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    
+    try:
+        user = verify_token(access_token)
+        
+        # Get user's chat sessions
+        response = supabase.table("chat_sessions")\
+            .select("*")\
+            .eq("user_id", user.id)\
+            .order("updated_at", desc=True)\
+            .execute()
+        
+        return {"sessions": response.data}
+    except Exception as e:
+        logger.error(f"Get sessions error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions/{session_id}/messages")
+async def get_session_messages(session_id: str, access_token: str):
+    """Get all messages for a specific session"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    
+    try:
+        user = verify_token(access_token)
+        
+        # Get session messages
+        response = supabase.table("chat_messages")\
+            .select("*")\
+            .eq("session_id", session_id)\
+            .eq("user_id", user.id)\
+            .order("created_at", desc=False)\
+            .execute()
+        
+        return {"messages": response.data}
+    except Exception as e:
+        logger.error(f"Get messages error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/chat/auth")
+async def chat_with_auth(chat_request: ChatRequestAuth):
+    """Authenticated chat - loads history from Supabase + background save"""
+    try:
+        # Load history from Supabase if session_id is provided
+        history = []
+        if supabase and chat_request.session_id:
+            try:
+                # verify user first
+                user = verify_token(chat_request.access_token)
+                
+                # Get last 10 messages for this session
+                history_resp = supabase.table("chat_messages")\
+                    .select("role, content")\
+                    .eq("session_id", chat_request.session_id)\
+                    .eq("user_id", user.id)\
+                    .order("created_at", desc=True)\
+                    .limit(10)\
+                    .execute()
+                
+                # Reverse to get chronological order
+                raw_history = history_resp.data[::-1]
+                history = [{"role": m["role"], "content": m["content"]} for m in raw_history]
+                logger.info(f"Loaded {len(history)} messages from history for session {chat_request.session_id}")
+            except Exception as e:
+                logger.warning(f"Failed to load chat history: {e}")
+        
+        # Get response using history
+        fast_request = ChatRequest(message=chat_request.message, language=chat_request.language)
+        result = await chat_endpoint(fast_request, history=history)
+        
+        # Background save to Supabase
+        if supabase:
+            async def save_to_supabase():
+                try:
+                    user = verify_token(chat_request.access_token)
+                    user_supabase = create_client(supabase_url, supabase_key)
+                    user_supabase.postgrest.auth(chat_request.access_token)
+                    
+                    # Create or use existing session
+                    session_id = chat_request.session_id
+                    if not session_id:
+                        session_response = user_supabase.table("chat_sessions").insert({
+                            "user_id": user.id,
+                            "title": chat_request.message[:50] + "..."
+                        }).execute()
+                        session_id = session_response.data[0]["id"]
+                    
+                    # Save messages
+                    user_supabase.table("chat_messages").insert([
+                        {"session_id": session_id, "user_id": user.id, "role": "user", "content": chat_request.message},
+                        {"session_id": session_id, "user_id": user.id, "role": "assistant", "content": result["response"]}
+                    ]).execute()
+                    
+                    logger.info(f"Background save completed for session {session_id}")
+                except Exception as e:
+                    logger.error(f"Background Supabase save error: {e}")
+            
+            # Fire and forget - don't wait!
+            asyncio.create_task(save_to_supabase())
+        
+        return result
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Authenticated chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Authenticated chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ ORIGINAL CHAT ENDPOINT (NO AUTH) ============
+
 @app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
-    global chat_history
+async def chat_endpoint(request: ChatRequest, history: Optional[List[dict]] = None):
+    """ULTRA-FAST chat - uses provided history or just current message"""
     try:
         logger.info(f"Received chat request: {request.message}")
         
-        # Add user message to history
-        chat_history.append({"role": "user", "content": request.message})
-        if len(chat_history) > 20:
-            chat_history = chat_history[-20:]
+        # Use provided history or start new
+        messages = history if history else []
+        messages.append({"role": "user", "content": request.message})
             
-        # Call Azure OpenAI
-        # Using max_tokens for better compatibility across versions
+        # Call OpenRouter API FAST
         response = client.chat.completions.create(
-            model=deployment_name,
-            messages=chat_history,
-            max_tokens=300,
-            temperature=0.9
+            model="openai/gpt-4o-mini",
+            messages=messages,
+            max_tokens=200,  # Shorter for faster voice responses
+            temperature=0.7
         )
         
         ai_response = response.choices[0].message.content
-        chat_history.append({"role": "assistant", "content": ai_response})
         
         logger.info("Successfully got AI response")
         return {"response": ai_response}
@@ -121,24 +461,26 @@ async def weather_endpoint(request: WeatherRequest):
 @app.get("/news")
 async def news_endpoint():
     try:
-        # Using NewsAPI as per Jarvis.py logic
-        url = f"https://newsapi.org/v2/top-headlines?country=us&apiKey={news_api_key}"
+        # Using NewsData.io API (correct one for user's key)
+        url = f"https://newsdata.io/api/1/news?apikey={news_api_key}&country=us&language=en"
         resp = requests.get(url)
         if resp.status_code == 200:
             data = resp.json()
             news_items = []
-            for article in data.get('articles', [])[:5]:
+            for article in data.get('results', [])[:5]:
                 news_items.append({
-                    "title": article['title'],
+                    "title": article.get('title', ''),
                     "description": article.get('description', ''),
-                    "link": article.get('url', ''),
-                    "pubDate": article.get('publishedAt', '')
+                    "link": article.get('link', ''),
+                    "pubDate": article.get('pubDate', '')
                 })
             return {"news": news_items, "count": len(news_items)}
         else:
-            return {"news": [], "count": 0, "error": "Failed to retrieve news"}
+            logger.error(f"News API error: {resp.status_code} - {resp.text}")
+            return {"news": [], "count": 0, "error": f"Failed to retrieve news: {resp.status_code}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"News error: {str(e)}")
+        return {"news": [], "count": 0, "error": str(e)}
 
 @app.get("/cricket/matches")
 async def cricket_endpoint():
@@ -169,6 +511,17 @@ async def cricket_endpoint():
         print(f"Cricket Error: {e}")
         return {"matches": [], "count": 0, "error": str(e)}
 
+@app.get("/gmail")
+async def gmail_endpoint(max_results: int = 10, query: str = ""):
+    """Get Gmail emails - supports filters like 'is:unread' or 'from:someone@email.com'"""
+    try:
+        logger.info(f"Gmail request: max_results={max_results}, query={query}")
+        result = read_gmail_emails(max_results=max_results, query=query)
+        return result
+    except Exception as e:
+        logger.error(f"Gmail endpoint error: {e}")
+        return {"emails": [], "count": 0, "error": str(e)}
+
 @app.post("/youtube/search")
 async def youtube_search(request: YoutubeRequest):
     try:
@@ -196,6 +549,36 @@ async def youtube_search(request: YoutubeRequest):
             return {"videos": [], "error": f"YouTube API error: {resp.status_code}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/youtube/play")
+async def youtube_play(request: YoutubeRequest):
+    """Play YouTube video - returns same as search for now"""
+    try:
+        url = "https://www.googleapis.com/youtube/v3/search"
+        params = {
+            "part": "snippet",
+            "q": request.query,
+            "type": "video",
+            "key": youtube_api_key,
+            "maxResults": 1
+        }
+        resp = requests.get(url, params=params)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("items"):
+                item = data["items"][0]
+                video = {
+                    "title": item["snippet"]["title"],
+                    "videoId": item["id"]["videoId"],
+                    "url": f"https://www.youtube.com/watch?v={item['id']['videoId']}",
+                    "thumbnail": item["snippet"]["thumbnails"]["default"]["url"]
+                }
+                return {"video": video, "message": f"Playing: {video['title']}"}
+            return {"error": "No video found"}
+        else:
+            return {"error": f"YouTube API error: {resp.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/tts")
 async def tts_endpoint(request: TTSRequest):
@@ -232,6 +615,14 @@ async def time_endpoint():
         "greeting": "Good Morning" if now.hour < 12 else "Good Afternoon" if now.hour < 17 else "Good Evening"
     }
 
+# Serve original web-ui.html (full-featured version)
+@app.get("/web-ui.html")
+async def serve_original_ui():
+    web_ui_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web-ui.html")
+    if os.path.exists(web_ui_path):
+        return FileResponse(web_ui_path)
+    raise HTTPException(status_code=404, detail=f"Original UI not found at {web_ui_path}")
+
 # Serve React static files (if built)
 build_path = os.path.join(os.path.dirname(__file__), "jarvis-web-ui", "build")
 if os.path.exists(build_path):
@@ -239,8 +630,8 @@ if os.path.exists(build_path):
     
     @app.get("/{full_path:path}")
     async def serve_react(request: Request, full_path: str):
-        # Don't intercept API routes
-        if full_path.startswith("api/") or full_path in ["chat", "weather", "news", "youtube/search", "tts", "time", "health"]:
+        # Don't intercept API routes and original UI
+        if full_path.startswith("api/") or full_path in ["chat", "weather", "news", "youtube/search", "tts", "time", "health", "web-ui.html"]:
             raise HTTPException(status_code=404)
         
         file_path = os.path.join(build_path, full_path)
