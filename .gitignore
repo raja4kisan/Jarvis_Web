@@ -60,6 +60,13 @@ __pycache__/
 venv/
 ENV/
 
+# Web
+node_modules/
+dist/
+build/
+.next/
+.serverless/
+
 # Jarvis AI - Sensitive Files
 credentials.json
 token.json
