@@ -268,6 +268,58 @@
             color: #b8c6db;
             font-size: 14px;
         }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 600px) {
+            .landing-container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 36px;
+            }
+
+            .subtitle {
+                font-size: 16px;
+                margin-bottom: 30px;
+            }
+
+            .jarvis-logo, .circle-outer {
+                width: 150px;
+                height: 150px;
+            }
+
+            .circle-middle {
+                width: 110px;
+                height: 110px;
+            }
+
+            .circle-inner {
+                width: 80px;
+                height: 80px;
+            }
+
+            .sign-in-btn {
+                padding: 14px 30px;
+                font-size: 16px;
+                width: 100%;
+                justify-content: center;
+            }
+
+            .features {
+                gap: 15px;
+                margin-top: 40px;
+            }
+
+            .feature {
+                width: calc(50% - 15px);
+                padding: 15px;
+            }
+
+            .feature-icon {
+                font-size: 28px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -340,8 +392,8 @@
                     window.supabaseClient.auth.onAuthStateChange((event, session) => {
                         if (event === 'SIGNED_IN' && session) {
                             // Save credentials for web-ui.html to use
-                            localStorage.setItem('supabase_url', supabase_url);
-                            localStorage.setItem('supabase_anon_key', supabase_key);
+                            localStorage.setItem('supabase_url', SUPABASE_URL);
+                            localStorage.setItem('supabase_anon_key', SUPABASE_ANON_KEY);
                             localStorage.setItem('access_token', session.access_token);
                             
                             window.location.href = '/chat';

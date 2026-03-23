@@ -312,17 +312,92 @@
         }
 
         @media (max-width: 768px) {
+            .container {
+                height: 100vh;
+                border-radius: 0;
+            }
+
+            .header {
+                padding: 10px 15px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .controls {
+                display: none; /* Hide extra controls on very small headers */
+            }
+
             .main-content {
                 flex-direction: column;
+                position: relative;
             }
 
             .sidebar {
+                position: absolute;
+                top: 0;
+                left: -250px;
+                width: 250px;
+                height: 100%;
+                z-index: 1000;
+                transition: left 0.3s ease;
+                box-shadow: 5px 0 15px rgba(0,0,0,0.1);
+            }
+
+            .sidebar.active {
+                left: 0;
+            }
+
+            .sidebar-overlay {
+                display: none;
+                position: absolute;
+                top: 0;
+                left: 0;
                 width: 100%;
-                max-height: 200px;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+
+            .sidebar-overlay.active {
+                display: block;
             }
 
             .message {
                 max-width: 90%;
+            }
+
+            .input-area {
+                padding: 10px;
+            }
+
+            .btn-send {
+                padding: 12px 20px;
+            }
+        }
+
+        /* Hamburger Menu */
+        .menu-toggle {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+            z-index: 1001;
+            padding: 5px;
+        }
+
+        .menu-toggle span {
+            width: 25px;
+            height: 3px;
+            background-color: white;
+            border-radius: 2px;
+            transition: 0.3s;
+        }
+
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: flex;
             }
         }
     </style>
@@ -330,7 +405,14 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Jarvis AI Assistant</h1>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="menu-toggle" onclick="toggleSidebar()">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <h1>🤖 Jarvis</h1>
+            </div>
             <div class="controls">
                 <button class="btn btn-primary" onclick="toggleAutoSpeak()">
                     🔊 Voice: <span id="voiceStatus">ON</span>
@@ -343,7 +425,8 @@
         </div>
 
         <div class="main-content">
-            <div class="sidebar">
+            <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+            <div class="sidebar" id="sidebar">
                 <h3>⚡ Quick Actions</h3>
                 
                 <div class="widget">
@@ -406,7 +489,17 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8000';
+        // Dynamic API Base URL
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:8000' 
+            : window.location.origin;
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
         
         // Supabase Configuration (Will be initialized from URL/Storage)
         let supabaseClient = null;
@@ -1178,9 +1271,9 @@
         window.onload = async () => {
             // Try to initialize Supabase
             try {
-                // Get Supabase credentials from local storage (saved by index.html)
-                const savedUrl = localStorage.getItem('supabase_url');
-                const savedKey = localStorage.getItem('supabase_anon_key');
+                // Get Supabase credentials from constants or local storage
+                const savedUrl = localStorage.getItem('supabase_url') || 'https://roanczxtxlzovyesssge.supabase.co';
+                const savedKey = localStorage.getItem('supabase_anon_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvYW5jenh0eGx6b3Z5ZXNzc2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDc2MzIsImV4cCI6MjA4OTgyMzYzMn0.BXEIzm0MJqdDT1O6OkzeqdM2RoMy7SmTExxrq98e7sY';
                 
                 if (savedUrl && savedKey) {
                     supabaseClient = supabase.createClient(savedUrl, savedKey);
