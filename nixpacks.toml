@@ -1,0 +1,10 @@
+[phases.setup]
+nixPkgs = ["python312", "nodejs_20", "gcc"]
+
+[phases.install]
+dependsOn = ["setup"]
+cmds = ["python -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r requirements.txt", "cd jarvis-web-ui && npm install"]
+
+[phases.build]
+dependsOn = ["install"]
+cmds = ["cd jarvis-web-ui && npm run build"]
