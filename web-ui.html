@@ -532,6 +532,9 @@
                 document.getElementById('messageInput').value = transcript;
                 addMessage(`You said: ${transcript}`, 'user');
                 
+                // Stop listening immediately after getting a result to prevent hearing itself
+                try { recognition.abort(); } catch(e) {}
+                
                 // Automatically send the message
                 setTimeout(() => {
                     sendMessage(true); // true = voice mode
@@ -630,6 +633,13 @@
 
         async function speakText(text) {
             if (!autoSpeak || isSpeaking) return;
+
+            // Stop listening while speaking to prevent feedback loop
+            if (recognition && isListening) {
+                try {
+                    recognition.abort(); // Force stop immediately without firing onresult
+                } catch(e) {}
+            }
 
             isSpeaking = true;
             const voiceBtn = document.getElementById('voiceBtn');
