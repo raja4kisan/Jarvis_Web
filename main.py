@@ -340,6 +340,10 @@ async def get_session_messages(session_id: str, access_token: str):
 async def get_ai_response(message: str, history: Optional[List[dict]] = None):
     """Internal helper to call OpenAI/OpenRouter"""
     try:
+        # Check if API key is set
+        if not openrouter_api_key:
+            return {"response": "AI Error: OpenRouter API key not configured on Railway server. Please set OPENROUTER_API_KEY in Railway Settings > Variables.", "error": True}
+
         # Use provided history or start new
         messages = history if history else []
         messages.append({"role": "user", "content": message})
