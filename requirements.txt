@@ -1,0 +1,8 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.1
+pydantic==2.10.6
+python-multipart==0.0.18
+gtts==2.5.4
+openai>=1.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
