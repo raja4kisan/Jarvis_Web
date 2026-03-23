@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis AI Assistant</title>
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             margin: 0;
@@ -405,6 +407,11 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
+        
+        // Supabase Configuration (Will be initialized from URL/Storage)
+        let supabaseClient = null;
+        let session_id = new URLSearchParams(window.location.search).get('session_id') || localStorage.getItem('jarvis_session_id');
+        let access_token = null;
         let currentLanguage = 'en';
         let recognition = null;
         let isListening = false;
@@ -696,44 +703,86 @@
                     return;
                 }
                 
-                // Regular chat
-                const response = await fetch(`${API_BASE}/chat`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ message: message })
-                });
+            // Use authenticated endpoint if we have a token
+            const endpoint = access_token ? `${API_BASE}/chat/auth` : `${API_BASE}/chat`;
+            const payload = access_token ? {
+                message: message,
+                access_token: access_token,
+                session_id: session_id
+            } : { message: message };
 
-                if (!response.ok) {
-                    throw new Error('Failed to get response');
-                }
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
 
-                const data = await response.json();
-                
-                // Remove loading
-                document.getElementById('loading')?.remove();
-                
-                // Add assistant message
-                addMessage(data.response, 'assistant');
-                
-                // Speak the response if voice mode is enabled
-                if (voiceMode && autoSpeak) {
-                    await speakText(data.response);
-                }
-                
-            } catch (error) {
-                console.error('Error:', error);
-                document.getElementById('loading')?.remove();
-                const errorMsg = 'Sorry, I encountered an error. Please make sure the API server is running.';
-                addMessage(errorMsg, 'assistant');
-                if (voiceMode && autoSpeak) {
-                    await speakText(errorMsg);
-                }
-            } finally {
-                sendBtn.disabled = false;
+            if (!response.ok) {
+                throw new Error('Failed to get response');
             }
+
+            const data = await response.json();
+            
+            // Save session_id if it was created/returned
+            if (data.session_id) {
+                session_id = data.session_id;
+                localStorage.setItem('jarvis_session_id', session_id);
+            }
+            
+            // Remove loading
+            document.getElementById('loading')?.remove();
+            
+            // Add assistant message
+            addMessage(data.response, 'assistant');
+            
+            // Speak the response if voice mode is enabled
+            if (voiceMode && autoSpeak) {
+                await speakText(data.response);
+            }
+            
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('loading')?.remove();
+            const errorMsg = 'Sorry, I encountered an error. Please make sure the API server is running.';
+            addMessage(errorMsg, 'assistant');
+            if (voiceMode && autoSpeak) {
+                await speakText(errorMsg);
+            }
+        } finally {
+            sendBtn.disabled = false;
         }
+    }
+
+    async function loadHistory() {
+        if (!access_token || !session_id) return;
+        
+        try {
+            const response = await fetch(`${API_BASE}/sessions/${session_id}/messages`, {
+                headers: {
+                    'Authorization': `Bearer ${access_token}`
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.messages && data.messages.length > 0) {
+                    const messagesDiv = document.getElementById('messages');
+                    // Clear initial greeting if history exists
+                    messagesDiv.innerHTML = '';
+                    
+                    data.messages.forEach(msg => {
+                        addMessage(msg.content, msg.role);
+                    });
+                    
+                    addMessage('📜 Chat history loaded.', 'assistant');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load history:', error);
+        }
+    }
 
         async function playYouTubeVideo(query, voiceMode = false) {
             try {
@@ -1127,6 +1176,25 @@
 
         // Check API status on load
         window.onload = async () => {
+            // Try to initialize Supabase
+            try {
+                // Get Supabase credentials from local storage (saved by index.html)
+                const savedUrl = localStorage.getItem('supabase_url');
+                const savedKey = localStorage.getItem('supabase_anon_key');
+                
+                if (savedUrl && savedKey) {
+                    supabaseClient = supabase.createClient(savedUrl, savedKey);
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (session) {
+                        access_token = session.access_token;
+                        console.log('Supabase session verified');
+                        await loadHistory();
+                    }
+                }
+            } catch (e) {
+                console.warn('Supabase initialization skipped:', e);
+            }
+
             try {
                 const response = await fetch(`${API_BASE}/`);
                 if (response.ok) {

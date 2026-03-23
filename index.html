@@ -339,6 +339,11 @@
                     // Listen for auth state changes
                     window.supabaseClient.auth.onAuthStateChange((event, session) => {
                         if (event === 'SIGNED_IN' && session) {
+                            // Save credentials for web-ui.html to use
+                            localStorage.setItem('supabase_url', supabase_url);
+                            localStorage.setItem('supabase_anon_key', supabase_key);
+                            localStorage.setItem('access_token', session.access_token);
+                            
                             window.location.href = '/chat';
                         }
                     });
