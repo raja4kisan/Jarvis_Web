@@ -730,17 +730,47 @@
             }
         }
 
-        async function sendMessage(voiceMode = false) {
+        async function sendMessage(fromVoice = false) {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             
             if (!message) return;
 
             // Add user message (only if not already added by voice)
-            if (!voiceMode) {
+            if (!fromVoice) {
                 addMessage(message, 'user');
             }
             input.value = '';
+
+            // Check for voice control commands BEFORE sending to API
+            const lowerMsgCheck = message.toLowerCase();
+            
+            // "Switch to text mode" / "text mode" / "stop listening" commands
+            if (lowerMsgCheck.includes('switch to text') || lowerMsgCheck.includes('text mode') || 
+                lowerMsgCheck.includes('stop listening') || lowerMsgCheck.includes('stop voice')) {
+                if (voiceMode) {
+                    toggleVoiceInput();
+                } else {
+                    addMessage('📝 Already in Text Mode.', 'assistant');
+                }
+                return;
+            }
+            
+            // "Open YouTube [query]" command - open YouTube directly
+            if (lowerMsgCheck.includes('open youtube') || lowerMsgCheck.includes('youtube open')) {
+                let ytQuery = message.replace(/open|youtube/gi, '').trim();
+                if (ytQuery.length > 2) {
+                    addMessage(`🔍 Searching YouTube for: ${ytQuery}`, 'assistant');
+                    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(ytQuery)}`, '_blank');
+                } else {
+                    addMessage('🎬 Opening YouTube...', 'assistant');
+                    window.open('https://www.youtube.com', '_blank');
+                }
+                if (fromVoice && autoSpeak) {
+                    await speakText('Opening YouTube for you.');
+                }
+                return;
+            }
 
             // Disable send button
             const sendBtn = document.getElementById('sendBtn');
@@ -767,7 +797,7 @@
                     if (cityMatches && cityMatches[1]) {
                         city = cityMatches[1].trim();
                     }
-                    await showWeather(city, voiceMode);
+                    await showWeather(city, fromVoice);
                     return;
                 }
                 
@@ -775,16 +805,16 @@
                 if (lowerMsg.includes('news') || lowerMsg.includes('headlines') || lowerMsg.includes('breaking') || 
                     (lowerMsg.includes('latest') && (lowerMsg.includes('update') || lowerMsg.includes('event'))) ||
                     (lowerMsg.includes('current') && (lowerMsg.includes('event') || lowerMsg.includes('affair')))) {
-                    await showNews(voiceMode);
+                    await showNews(fromVoice);
                     return;
                 }
                 
-                // Check for YouTube/Music play commands
-                if (lowerMsg.includes('play') && (lowerMsg.includes('song') || lowerMsg.includes('music') || lowerMsg.includes('video') || lowerMsg.includes('youtube') || lowerMsg.includes('track') || lowerMsg.includes('title'))) {
-                    // Extract song/video name
-                    let query = message.replace(/play|song|music|video|youtube|track|title|the|a/gi, '').trim();
-                    if (query.length > 2) {
-                        await playYouTubeVideo(query, voiceMode);
+                // Check for YouTube/Music play commands - broader detection
+                if (lowerMsg.includes('play') || (lowerMsg.includes('youtube') && (lowerMsg.includes('search') || lowerMsg.includes('find')))) {
+                    // Extract song/video name - remove command words only
+                    let query = message.replace(/\b(play|on youtube|from youtube|song|music|video|youtube|track|title|the|a|please|can you|could you)\b/gi, '').trim();
+                    if (query.length > 1) {
+                        await playYouTubeVideo(query, fromVoice);
                         return;
                     }
                 }
@@ -792,7 +822,7 @@
                 // Check for cricket score commands
                 if ((lowerMsg.includes('cricket') || lowerMsg.includes('match') || lowerMsg.includes('score') || lowerMsg.includes('vs') || lowerMsg.includes('versus')) && 
                     (lowerMsg.includes('live') || lowerMsg.includes('score') || lowerMsg.includes('match') || lowerMsg.includes('india') || lowerMsg.includes('ipl') || lowerMsg.includes('australia') || lowerMsg.includes('england') || lowerMsg.includes('pakistan') || lowerMsg.includes('new zealand') || lowerMsg.includes('south africa') || lowerMsg.includes('newzealand'))) {
-                    await showCricketScores(voiceMode);
+                    await showCricketScores(fromVoice);
                     return;
                 }
                 
@@ -831,7 +861,7 @@
             addMessage(data.response, 'assistant');
             
             // Speak the response if voice mode is enabled
-            if (voiceMode && autoSpeak) {
+            if (fromVoice && autoSpeak) {
                 await speakText(data.response);
             }
             
@@ -840,7 +870,7 @@
             document.getElementById('loading')?.remove();
             const errorMsg = 'Sorry, I encountered an error. Please make sure the API server is running.';
             addMessage(errorMsg, 'assistant');
-            if (voiceMode && autoSpeak) {
+            if (fromVoice && autoSpeak) {
                 await speakText(errorMsg);
             }
         } finally {
@@ -891,10 +921,15 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    const msg = `Opening YouTube: ${data.video.title}`;
-                    addMessage(msg, 'assistant');
-                    if (voiceMode && autoSpeak) {
-                        await speakText(msg);
+                    if (data.video && data.video.url) {
+                        const msg = `🎬 Opening YouTube: ${data.video.title}`;
+                        addMessage(msg, 'assistant');
+                        window.open(data.video.url, '_blank');
+                        if (voiceMode && autoSpeak) {
+                            await speakText(`Playing ${data.video.title} on YouTube`);
+                        }
+                    } else {
+                        addMessage('Found a result but no URL available.', 'assistant');
                     }
                 } else {
                     const msg = 'Sorry, I couldn\'t find that video on YouTube.';
