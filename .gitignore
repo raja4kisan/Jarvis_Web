@@ -68,6 +68,17 @@ token.json
 *.mp3
 *.wav
 
+# Test Files
+test_*.py
+diagnose_connection.py
+check_voices.py
+project.py
+
+# Documentation (Optional to push, but user asked to ignore non-core md)
+*.md
+!README.md
+!README_COMPLETE.md
+
 # IDE
 .vscode/
 .idea/

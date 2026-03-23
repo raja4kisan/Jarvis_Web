@@ -1,21 +1,27 @@
-import openai
+from openai import AzureOpenAI
 import os
-from config import apikey
-# Load the API key from an environment variable
-openai.api_key = apikey
+from config import apikey, api_base, api_version, deployment_name
+
+# Initialize Azure OpenAI client
+client = AzureOpenAI(
+    api_key=apikey,
+    api_version=api_version,
+    azure_endpoint=api_base
+)
 
 try:
-    response = openai.Completion.create(
-        engine="gpt-3.5-turbo-instruct",  # Replace with the appropriate model name
-        prompt="Dear Hiring Manager,\nI am writing to express my interest in the [position] position at [company].",
-        temperature=0.7,
-        max_tokens=300,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
-        )
+    response = client.chat.completions.create(
+        model=deployment_name,
+        messages=[
+            {"role": "system", "content": "You are a professional email writer."},
+            {"role": "user", "content": "Dear Hiring Manager,\nI am writing to express my interest in the [position] position at [company]."}
+        ],
+        max_completion_tokens=300
+    )
 
     print(response)
+    print("\n--- Generated Email ---")
+    print(response.choices[0].message.content)
 except Exception as e:
     print(f"Invalid Request! Error: {e}")
 
