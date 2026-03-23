@@ -337,6 +337,26 @@ async def get_session_messages(session_id: str, access_token: str):
         logger.error(f"Get messages error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+async def get_ai_response(message: str, history: Optional[List[dict]] = None):
+    """Internal helper to call OpenAI/OpenRouter"""
+    try:
+        # Use provided history or start new
+        messages = history if history else []
+        messages.append({"role": "user", "content": message})
+            
+        # Call OpenRouter API FAST
+        response = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=messages,
+            max_tokens=200,  # Shorter for faster voice responses
+            temperature=0.7
+        )
+        
+        return {"response": response.choices[0].message.content}
+    except Exception as e:
+        logger.error(f"AI Response Error: {e}")
+        return {"response": f"AI Error: {str(e)}", "error": True}
+
 @app.post("/chat/auth")
 async def chat_with_auth(chat_request: ChatRequestAuth):
     """Authenticated chat - loads history from Supabase + background save"""
@@ -365,8 +385,7 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
                 logger.warning(f"Failed to load chat history: {e}")
         
         # Get response using history
-        fast_request = ChatRequest(message=chat_request.message, language=chat_request.language)
-        result = await chat_endpoint(fast_request, history=history)
+        result = await get_ai_response(chat_request.message, history=history)
         
         # Background save to Supabase
         if supabase:
@@ -398,6 +417,10 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
             # Fire and forget - don't wait!
             asyncio.create_task(save_to_supabase())
         
+        # Add session_id to result for client to save
+        if chat_request.session_id:
+            result["session_id"] = chat_request.session_id
+        
         return result
         
     except HTTPException as e:
@@ -405,58 +428,32 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
     except Exception as e:
         logger.error(f"Authenticated chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        logger.error(f"Authenticated chat error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ============ ORIGINAL CHAT ENDPOINT (NO AUTH) ============
 
 @app.post("/chat")
-async def chat_endpoint(request: ChatRequest, history: Optional[List[dict]] = None):
-    """ULTRA-FAST chat - uses provided history or just current message"""
-    try:
-        logger.info(f"Received chat request: {request.message}")
-        
-        # Use provided history or start new
-        messages = history if history else []
-        messages.append({"role": "user", "content": request.message})
-            
-        # Call OpenRouter API FAST
-        response = client.chat.completions.create(
-            model="openai/gpt-4o-mini",
-            messages=messages,
-            max_tokens=200,  # Shorter for faster voice responses
-            temperature=0.7
-        )
-        
-        ai_response = response.choices[0].message.content
-        
-        logger.info("Successfully got AI response")
-        return {"response": ai_response}
-    except Exception as e:
-        logger.error(f"CHAT ERROR: {str(e)}")
-        # Return the error in the response so we can see it in the UI too
-        return {"response": f"API Error: {str(e)}", "error": True}
-        # In production, you might want to raise HTTPException, 
-        # but for debugging, returning the error message is easier.
+async def chat_endpoint(request: ChatRequest):
+    """ULTRA-FAST chat - unauthenticated"""
+    return await get_ai_response(request.message)
 
 @app.post("/weather")
 async def weather_endpoint(request: WeatherRequest):
     try:
+        if not weather_api_key:
+            return {"error": "Weather API key not configured on server", "city": request.city, "temperature": "N/A", "condition": "Missing API Key"}
+            
         url = f'http://api.weatherapi.com/v1/current.json?key={weather_api_key}&q={request.city}&aqi=no'
-        resp = requests.get(url)
+        resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
             data = resp.json()
             return {
                 "city": data['location']['name'],
                 "temperature": data['current']['temp_c'],
-                "condition": data['current']['condition']['text'],
-                "humidity": data['current']['humidity']
+                "condition": data['current']['condition']['text']
             }
         else:
-            raise HTTPException(status_code=404, detail="City not found")
+            return {"error": f"Failed to fetch weather data: {resp.status_code}", "city": request.city, "temperature": "N/A", "condition": "Error"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Weather error: {e}")
+        return {"error": str(e), "city": request.city, "temperature": "N/A", "condition": "Error"}
 
 @app.get("/news")
 async def news_endpoint():
