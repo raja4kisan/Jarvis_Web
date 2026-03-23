@@ -12,7 +12,12 @@ import edge_tts
 import tempfile
 import asyncio
 from openai import AzureOpenAI
+import logging
 from config import apikey, api_base, api_version, deployment_name, youtube_api_key, weather_api_key, news_api_key, cricket_api_key
+
+# Configure logging to show in Railway logs
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Jarvis AI API")
 
@@ -67,27 +72,33 @@ async def health():
 async def chat_endpoint(request: ChatRequest):
     global chat_history
     try:
+        logger.info(f"Received chat request: {request.message}")
+        
         # Add user message to history
         chat_history.append({"role": "user", "content": request.message})
-        
-        # Keep history concise (last 10 exchanges)
         if len(chat_history) > 20:
             chat_history = chat_history[-20:]
             
         # Call Azure OpenAI
+        # Using max_tokens for better compatibility across versions
         response = client.chat.completions.create(
             model=deployment_name,
             messages=chat_history,
-            max_completion_tokens=300,
+            max_tokens=300,
             temperature=0.9
         )
         
         ai_response = response.choices[0].message.content
         chat_history.append({"role": "assistant", "content": ai_response})
         
+        logger.info("Successfully got AI response")
         return {"response": ai_response}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"CHAT ERROR: {str(e)}")
+        # Return the error in the response so we can see it in the UI too
+        return {"response": f"API Error: {str(e)}", "error": True}
+        # In production, you might want to raise HTTPException, 
+        # but for debugging, returning the error message is easier.
 
 @app.post("/weather")
 async def weather_endpoint(request: WeatherRequest):

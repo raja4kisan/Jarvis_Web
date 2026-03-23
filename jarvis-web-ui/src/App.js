@@ -128,6 +128,13 @@ function App() {
     try {
       const response = await axios.post(`${API_BASE_URL}/chat`, { message: msg, language });
       const aiResponse = response.data.response;
+      
+      // Check if it's an error response
+      if (response.data.error) {
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${aiResponse}` }]);
+        return;
+      }
+
       setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
       
       if (voiceMode) {
@@ -135,6 +142,7 @@ function App() {
       }
     } catch (err) {
       console.error('Chat error:', err);
+      setMessages(prev => [...prev, { role: 'assistant', content: "❌ Connection Error: Could not reach the server." }]);
     } finally {
       setIsLoading(false);
     }
