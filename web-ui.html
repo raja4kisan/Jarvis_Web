@@ -1542,9 +1542,20 @@
                                 console.log('Supabase session verified', google_access_token ? 'with Google token' : 'no Google token');
                                 await loadHistory();
                             } else {
-                                // Redirection to signin page if not logged in
-                                console.log('No session found, redirecting to login...');
-                                window.location.href = '/';
+                                // Important: OAuth redirects often have a delay in session parsing
+                                // We wait a moment before assuming the user is not logged in
+                                console.log('Checking for session...');
+                                setTimeout(async () => {
+                                    const { data: { session: retrySession } } = await supabaseClient.auth.getSession();
+                                    if (!retrySession) {
+                                        console.log('No session found after wait, redirecting to login...');
+                                        window.location.href = '/';
+                                    } else {
+                                        access_token = retrySession.access_token;
+                                        google_access_token = retrySession.provider_token;
+                                        await loadHistory();
+                                    }
+                                }, 1500);
                             }
                         } else {
                             console.warn('Supabase client could not be created.');

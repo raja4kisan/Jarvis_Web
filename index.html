@@ -384,7 +384,7 @@
             }
         }
 
-        // Check if user is already signed in (Optional: only logic, no redirect)
+        // Check if user is already signed in
         async function checkAuth() {
             if (!window.supabaseClient) return;
             
@@ -392,7 +392,12 @@
                 const { data: { session } } = await window.supabaseClient.auth.getSession();
                 if (session) {
                     console.log('User is already signed in');
-                    // We stay on landing page as requested by user
+                    const loginBtn = document.getElementById('loginBtn');
+                    if (loginBtn) {
+                        loginBtn.innerHTML = '<span>🚀</span> Enter Jarvis Chat';
+                        loginBtn.onclick = () => window.location.href = '/chat';
+                        loginBtn.style.background = 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)';
+                    }
                 }
             } catch (error) {
                 console.error('Error checking auth:', error);
