@@ -448,7 +448,7 @@
                 <button class="btn btn-primary" onclick="toggleLanguage()">
                     Language: <span id="currentLang">English</span>
                 </button>
-                <button class="btn btn-primary" onclick="clearChat()">Clear Chat</button>
+                <button class="btn btn-primary" onclick="clearChat()">New Chat</button>
             </div>
         </div>
 
@@ -463,7 +463,7 @@
                     <button class="btn btn-primary" onclick="toggleLanguage()">
                         Lang: <span id="currentLangMobile">English</span>
                     </button>
-                    <button class="btn btn-primary" onclick="clearChat()">Clear Chat</button>
+                    <button class="btn btn-primary" onclick="clearChat()">New Chat</button>
                 </div>
                 <h3>⚡ Quick Actions</h3>
 
@@ -506,6 +506,12 @@
                 <div class="widget">
                     <h4>⏰ Current Time</h4>
                     <p id="currentTime">--:--</p>
+                </div>
+
+                <div style="margin-top: 20px; padding: 10px 0;">
+                    <button class="btn btn-primary" onclick="signOut()" style="background: #ff4757; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <span>🚪</span> Sign Out
+                    </button>
                 </div>
             </div>
 
@@ -1497,15 +1503,24 @@
         }
 
         function clearChat() {
+            session_id = null;
+            localStorage.removeItem('jarvis_session_id');
+            const url = new URL(window.location);
+            url.searchParams.delete('session_id');
+            window.history.pushState({}, '', url.toString());
+
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
                     <div class="avatar">J</div>
                     <div class="message-content">
-                        Chat cleared. You can type or click the 🎤 microphone to speak. How can I help you?
+                        New conversation started. How can I help you today?
                     </div>
                 </div>
             `;
+            
+            // Refresh sessions list
+            loadSessions();
         }
 
         // Check API status on load
@@ -1548,6 +1563,13 @@
                 addMessage('⚠️ Warning: Cannot connect to API server. Please make sure the backend is running on http://localhost:8000', 'assistant');
             }
         };
+        async function signOut() {
+            if (supabaseClient) {
+                await supabaseClient.auth.signOut();
+            }
+            localStorage.clear();
+            window.location.href = '/';
+        }
     </script>
 </body>
 

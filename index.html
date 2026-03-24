@@ -384,15 +384,15 @@
             }
         }
 
-        // Check if user is already signed in
+        // Check if user is already signed in (Optional: only logic, no redirect)
         async function checkAuth() {
             if (!window.supabaseClient) return;
             
             try {
                 const { data: { session } } = await window.supabaseClient.auth.getSession();
                 if (session) {
-                    // User is already signed in, redirect to chat
-                    window.location.href = '/chat';
+                    console.log('User is already signed in');
+                    // We stay on landing page as requested by user
                 }
             } catch (error) {
                 console.error('Error checking auth:', error);

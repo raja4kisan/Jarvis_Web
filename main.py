@@ -500,45 +500,53 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
         history = []
         if user_supabase and session_id:
             try:
-                # Get last 10 messages for this session
+                logger.info(f"Attempting to load history for session {session_id} and user {user.id}")
+                # Get last 15 messages for more context
                 history_resp = user_supabase.table("chat_messages")\
                     .select("role, content")\
                     .eq("session_id", session_id)\
                     .eq("user_id", user.id)\
                     .order("created_at", desc=True)\
-                    .limit(10)\
+                    .limit(15)\
                     .execute()
                 
-                # Reverse to get chronological order
-                raw_history = history_resp.data[::-1]
-                history = [{"role": m["role"], "content": m["content"]} for m in raw_history]
-                logger.info(f"Loaded {len(history)} messages from history for session {session_id}")
+                if history_resp.data:
+                    # Reverse to get chronological order
+                    raw_history = history_resp.data[::-1]
+                    history = [{"role": m["role"], "content": m["content"]} for m in raw_history]
+                    logger.info(f"SUCCESS: Loaded {len(history)} messages for session {session_id}")
+                else:
+                    logger.info(f"No previous history found for session {session_id}")
             except Exception as e:
-                logger.warning(f"Failed to load chat history: {e}")
+                logger.error(f"ERROR loading chat history: {e}")
         
         # 3. Get response using history
         result = await get_ai_response(chat_request.message, history=history)
         
         # 4. Background save to Supabase (FIRE AND FORGET)
         if user_supabase and session_id:
-            async def save_to_supabase_task(sid, msg, resp, token):
+            async def save_to_supabase_task(sid, msg, resp, token, uid):
                 try:
-                    # Create a temporary client for the background task to avoid closure issues
+                    logger.info(f"Starting background save for session {sid}...")
+                    # Create a temporary client for the background task
                     bg_client = create_client(supabase_url, supabase_key)
                     bg_client.postgrest.auth(token)
-                    bg_client.table("chat_messages").insert([
-                        {"session_id": sid, "user_id": user.id, "role": "user", "content": msg},
-                        {"session_id": sid, "user_id": user.id, "role": "assistant", "content": resp}
+                    
+                    save_resp = bg_client.table("chat_messages").insert([
+                        {"session_id": sid, "user_id": uid, "role": "user", "content": msg},
+                        {"session_id": sid, "user_id": uid, "role": "assistant", "content": resp}
                     ]).execute()
-                    logger.info(f"Background save completed for session {sid}")
+                    
+                    logger.info(f"SUCCESS: Background save for session {sid} completed. Saved {len(save_resp.data)} items.")
                 except Exception as e:
-                    logger.error(f"Background Supabase save error: {e}")
+                    logger.error(f"CRITICAL: Background Supabase save error: {e}")
             
-            asyncio.create_task(save_to_supabase_task(session_id, chat_request.message, result["response"], chat_request.access_token))
+            asyncio.create_task(save_to_supabase_task(session_id, chat_request.message, result["response"], chat_request.access_token, user.id))
         
         # 5. Always return the session_id so frontend can track it
         if session_id:
             result["session_id"] = session_id
+            logger.info(f"Returning response for session {session_id}")
         
         return result
         
