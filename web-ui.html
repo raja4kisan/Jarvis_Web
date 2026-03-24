@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis AI Assistant</title>
     <!-- Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Supabase SDK with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+        onerror="this.src='https://unpkg.com/@supabase/supabase-js@2'"></script>
+    <!-- Supabase SDK with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+        onerror="this.src='https://unpkg.com/@supabase/supabase-js@2'"></script>
     <style>
         * {
             margin: 0;
@@ -141,6 +147,7 @@
                 opacity: 0;
                 transform: translateY(10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -273,9 +280,12 @@
         }
 
         @keyframes pulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 transform: scale(1);
             }
+
             50% {
                 transform: scale(1.1);
             }
@@ -326,7 +336,8 @@
             }
 
             .controls {
-                display: none; /* Hide extra controls on very small headers */
+                display: none;
+                /* Hide extra controls on very small headers */
             }
 
             .main-content {
@@ -342,7 +353,7 @@
                 height: 100%;
                 z-index: 1000;
                 transition: left 0.3s ease;
-                box-shadow: 5px 0 15px rgba(0,0,0,0.1);
+                box-shadow: 5px 0 15px rgba(0, 0, 0, 0.1);
             }
 
             .sidebar.active {
@@ -356,7 +367,7 @@
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: rgba(0,0,0,0.5);
+                background: rgba(0, 0, 0, 0.5);
                 z-index: 999;
             }
 
@@ -368,8 +379,23 @@
                 max-width: 90%;
             }
 
+            .main-content {
+                flex-direction: column;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .chat-area {
+                height: 100%;
+            }
+
+            .mobile-controls {
+                display: flex !important;
+            }
+
             .input-area {
                 padding: 10px;
+                background: #fff;
             }
 
             .btn-send {
@@ -402,6 +428,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -427,11 +454,22 @@
         <div class="main-content">
             <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
             <div class="sidebar" id="sidebar">
+                <div class="mobile-controls"
+                    style="display: none; flex-direction: column; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 15px;">
+                    <button class="btn btn-primary" onclick="toggleAutoSpeak()">
+                        🔊 Voice: <span id="voiceStatusMobile">ON</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="toggleLanguage()">
+                        Lang: <span id="currentLangMobile">English</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="clearChat()">Clear Chat</button>
+                </div>
                 <h3>⚡ Quick Actions</h3>
-                
+
                 <div class="widget">
                     <h4>🌤️ Weather</h4>
-                    <input type="text" id="cityInput" placeholder="Enter city..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px;">
+                    <input type="text" id="cityInput" placeholder="Enter city..."
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px;">
                     <button class="btn btn-primary" style="width: 100%;" onclick="getWeather()">Get Weather</button>
                     <div id="weatherInfo" style="margin-top: 10px;"></div>
                 </div>
@@ -444,14 +482,24 @@
 
                 <div class="widget">
                     <h4>� Cricket Live Scores</h4>
-                    <button class="btn btn-primary" style="width: 100%;" onclick="getCricketMatches()">Get Live Matches</button>
+                    <h4>🏏 Cricket Live Scores</h4>
+                    <button class="btn btn-primary" style="width: 100%;" onclick="getCricketMatches()">Get Live
+                        Matches</button>
                     <div id="cricketInfo" style="margin-top: 10px; max-height: 300px; overflow-y: auto;"></div>
                 </div>
 
                 <div class="widget">
-                    <h4>�🎵 YouTube Search</h4>
-                    <input type="text" id="youtubeQuery" placeholder="Search..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px;">
+                    <h4>📺 YouTube Search</h4>
+                    <input type="text" id="youtubeQuery" placeholder="Search..."
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px;">
                     <button class="btn btn-primary" style="width: 100%;" onclick="searchYoutube()">Search</button>
+                </div>
+
+                <div class="widget">
+                    <h4>📧 Gmail Inbox</h4>
+                    <button class="btn btn-primary" style="width: 100%;" onclick="getGmailEmails()">Check
+                        Emails</button>
+                    <div id="gmailInfo" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
                 </div>
 
                 <div class="widget">
@@ -465,19 +513,16 @@
                     <div class="message assistant">
                         <div class="avatar">J</div>
                         <div class="message-content">
-                            Hello! I'm Jarvis, your AI assistant. You can type or click the 🎤 microphone button to speak with me. How can I help you today?
+                            Hello! I'm Jarvis, your AI assistant. You can type or click the 🎤 microphone button to
+                            speak with me. How can I help you today?
                         </div>
                     </div>
                 </div>
 
                 <div class="input-area">
                     <div class="input-container">
-                        <input 
-                            type="text" 
-                            id="messageInput" 
-                            placeholder="Type your message or click the mic..."
-                            onkeypress="handleKeyPress(event)"
-                        >
+                        <input type="text" id="messageInput" placeholder="Type your message or click the mic..."
+                            onkeypress="handleKeyPress(event)">
                         <button class="btn-voice" id="voiceBtn" onclick="toggleVoiceInput()" title="Voice Input">
                             🎤
                         </button>
@@ -490,17 +535,17 @@
 
     <script>
         // Dynamic API Base URL
-        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:8000' 
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000'
             : window.location.origin;
-        
+
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
-        
+
         // Supabase Configuration (Will be initialized from URL/Storage)
         let supabaseClient = null;
         let session_id = new URLSearchParams(window.location.search).get('session_id') || localStorage.getItem('jarvis_session_id');
@@ -511,34 +556,90 @@
         let isSpeaking = false;
         let autoSpeak = true; // Auto-play voice responses
         let voiceMode = false; // Continuous voice conversation mode
+        let google_access_token = null; // Captured from session
 
         // Initialize Speech Recognition
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SpeechRecognition();
             recognition.continuous = false;
-            recognition.interimResults = false;
+            recognition.interimResults = true;
 
             recognition.onstart = () => {
                 isListening = true;
                 const voiceBtn = document.getElementById('voiceBtn');
                 voiceBtn.classList.add('listening');
                 voiceBtn.textContent = '🔴';
-                addMessage('🎤 Listening... Speak now!', 'assistant');
+                // addMessage('🎤 Listening... Speak now!', 'assistant'); // Hide repetitive message
             };
 
             recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                document.getElementById('messageInput').value = transcript;
-                addMessage(`You said: ${transcript}`, 'user');
-                
-                // Stop listening immediately after getting a result to prevent hearing itself
-                try { recognition.abort(); } catch(e) {}
-                
-                // Automatically send the message
-                setTimeout(() => {
-                    sendMessage(true); // true = voice mode
-                }, 500);
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                // Real-time hearing feedback
+                const messageInput = document.getElementById('messageInput');
+                if (interimTranscript) {
+                    messageInput.placeholder = "🎤 Hearing: " + interimTranscript + "...";
+                } else {
+                    messageInput.placeholder = "Voice Mode Active - Speak your message";
+                }
+
+                if (finalTranscript) {
+                    messageInput.value = finalTranscript;
+                    const lowerTranscript = finalTranscript.toLowerCase().trim();
+                    let toolHandled = false;
+
+                    // 1. Intercept mode switch commands
+                    if (lowerTranscript.includes('text mode') || lowerTranscript.includes('switch to text')) {
+                        addMessage(`Command detected: ${finalTranscript}`, 'user');
+                        toggleVoiceInput();
+                        return;
+                    }
+
+                    // 2. Auto-trigger dashboard tools for a better 'Jarvis' feel
+                    if (lowerTranscript.includes('gmail') || lowerTranscript.includes('email') || lowerTranscript.includes('inbox')) {
+                        const detailMatch = lowerTranscript.match(/(?:show|open|read|detail|find)\s+(?:me\s+)?(?:the\s+)?([a-zA-Z0-9\s]+)\s+(?:e-mail|email|mail|inbox)/i) ||
+                            lowerTranscript.match(/([a-zA-Z0-9\s]+)\s+(?:e-mail|email|mail|inbox)\s+(?:in\s+)?detail/i);
+                        if (detailMatch) {
+                            const keyword = detailMatch[1].trim();
+                            getGmailEmails(keyword);
+                            toolHandled = true; // Use UI feedback instead of AI response for detail requests
+                        } else {
+                            getGmailEmails();
+                        }
+                    } else if (lowerTranscript.includes('weather')) {
+                        const cityMatch = lowerTranscript.match(/weather in ([a-zA-Z\s]+)/);
+                        if (cityMatch) {
+                            const city = cityMatch[1].trim();
+                            document.getElementById('cityInput').value = city;
+                            getWeather(city);
+                        } else {
+                            getWeather();
+                        }
+                    } else if (lowerTranscript.includes('news')) {
+                        getNews();
+                    } else if (lowerTranscript.includes('cricket')) {
+                        getLiveMatches();
+                    }
+
+                    addMessage(`You said: ${finalTranscript}`, 'user');
+
+                    // Automatically send the message if it wasn't a handled tool command
+                    if (!toolHandled) {
+                        setTimeout(() => {
+                            sendMessage(true);
+                        }, 500);
+                    }
+                }
             };
 
             recognition.onerror = (event) => {
@@ -547,27 +648,29 @@
                 if (event.error !== 'no-speech' && event.error !== 'aborted') {
                     addMessage(`⚠️ Voice error: ${event.error}`, 'assistant');
                 }
-                
+
                 // Restart listening if in continuous voice mode and error is not critical
                 if (voiceMode && event.error === 'no-speech') {
                     setTimeout(() => {
                         if (voiceMode && !isListening && !isSpeaking) {
                             startListening();
                         }
-                    }, 1000);
+                    }, 500);
                 }
             };
 
             recognition.onend = () => {
-                resetVoiceButton();
-                
-                // Restart listening if in continuous voice mode
-                if (voiceMode && !isListening && !isSpeaking) {
+                isListening = false;
+
+                // If in voice mode, restart immediately unless we're speaking
+                if (voiceMode && !isSpeaking) {
                     setTimeout(() => {
-                        if (voiceMode) {
+                        if (voiceMode && !isListening && !isSpeaking) {
                             startListening();
                         }
-                    }, 500);
+                    }, 100); // Very short delay for maximum responsiveness
+                } else if (!voiceMode) {
+                    resetVoiceButton();
                 }
             };
         }
@@ -589,7 +692,7 @@
 
         function startListening() {
             if (!recognition || isListening || isSpeaking) return;
-            
+
             try {
                 recognition.lang = currentLanguage === 'hi' ? 'hi-IN' : 'en-US';
                 recognition.start();
@@ -623,7 +726,7 @@
                 document.getElementById('messageInput').placeholder = 'Voice Mode Active - Speak your message...';
                 resetVoiceButton();
                 addMessage('🎤 Voice Mode Activated! Speak continuously. Click the mic again to switch back to text.', 'assistant');
-                
+
                 // Start listening immediately
                 setTimeout(() => {
                     startListening();
@@ -638,7 +741,7 @@
             if (recognition && isListening) {
                 try {
                     recognition.abort(); // Force stop immediately without firing onresult
-                } catch(e) {}
+                } catch (e) { }
             }
 
             isSpeaking = true;
@@ -653,9 +756,9 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         message: text,
-                        language: currentLanguage 
+                        language: currentLanguage
                     })
                 });
 
@@ -663,7 +766,7 @@
                     const audioBlob = await response.blob();
                     const audioUrl = URL.createObjectURL(audioBlob);
                     const audio = new Audio(audioUrl);
-                    
+
                     audio.onended = () => {
                         isSpeaking = false;
                         voiceBtn.classList.remove('speaking');
@@ -671,7 +774,7 @@
                             voiceBtn.textContent = '🎤';
                         }
                         URL.revokeObjectURL(audioUrl);
-                        
+
                         // Restart listening if in voice mode
                         if (voiceMode) {
                             setTimeout(() => {
@@ -679,14 +782,14 @@
                             }, 500);
                         }
                     };
-                    
+
                     audio.onerror = () => {
                         isSpeaking = false;
                         voiceBtn.classList.remove('speaking');
                         if (!voiceMode) {
                             voiceBtn.textContent = '🎤';
                         }
-                        
+
                         // Restart listening if in voice mode
                         if (voiceMode) {
                             setTimeout(() => {
@@ -694,7 +797,7 @@
                             }, 500);
                         }
                     };
-                    
+
                     await audio.play();
                 } else {
                     throw new Error('TTS failed');
@@ -704,7 +807,7 @@
                 isSpeaking = false;
                 voiceBtn.classList.remove('speaking');
                 voiceBtn.textContent = '🎤';
-                
+
                 // Fallback to browser's built-in speech synthesis
                 if ('speechSynthesis' in window) {
                     const utterance = new SpeechSynthesisUtterance(text);
@@ -715,7 +818,7 @@
                         if (!voiceMode) {
                             voiceBtn.textContent = '🎤';
                         }
-                        
+
                         // Restart listening if in voice mode
                         if (voiceMode) {
                             setTimeout(() => {
@@ -743,7 +846,7 @@
         async function sendMessage(fromVoice = false) {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-            
+
             if (!message) return;
 
             // Add user message (only if not already added by voice)
@@ -754,9 +857,9 @@
 
             // Check for voice control commands BEFORE sending to API
             const lowerMsgCheck = message.toLowerCase();
-            
+
             // "Switch to text mode" / "text mode" / "stop listening" commands
-            if (lowerMsgCheck.includes('switch to text') || lowerMsgCheck.includes('text mode') || 
+            if (lowerMsgCheck.includes('switch to text') || lowerMsgCheck.includes('text mode') ||
                 lowerMsgCheck.includes('stop listening') || lowerMsgCheck.includes('stop voice')) {
                 if (voiceMode) {
                     toggleVoiceInput();
@@ -765,7 +868,7 @@
                 }
                 return;
             }
-            
+
             // "Open YouTube [query]" command - open YouTube directly
             if (lowerMsgCheck.includes('open youtube') || lowerMsgCheck.includes('youtube open')) {
                 let ytQuery = message.replace(/open|youtube/gi, '').trim();
@@ -797,9 +900,9 @@
             try {
                 // Check for special commands FIRST
                 const lowerMsg = message.toLowerCase();
-                
+
                 // Check for weather commands
-                if (lowerMsg.includes('weather') || lowerMsg.includes('temperature') || lowerMsg.includes('forecast') || 
+                if (lowerMsg.includes('weather') || lowerMsg.includes('temperature') || lowerMsg.includes('forecast') ||
                     lowerMsg.includes('climate') || (lowerMsg.includes('how') && (lowerMsg.includes('hot') || lowerMsg.includes('cold') || lowerMsg.includes('rain')))) {
                     // Extract city name
                     let city = 'Delhi'; // default
@@ -810,15 +913,15 @@
                     await showWeather(city, fromVoice);
                     return;
                 }
-                
+
                 // Check for news commands
-                if (lowerMsg.includes('news') || lowerMsg.includes('headlines') || lowerMsg.includes('breaking') || 
+                if (lowerMsg.includes('news') || lowerMsg.includes('headlines') || lowerMsg.includes('breaking') ||
                     (lowerMsg.includes('latest') && (lowerMsg.includes('update') || lowerMsg.includes('event'))) ||
                     (lowerMsg.includes('current') && (lowerMsg.includes('event') || lowerMsg.includes('affair')))) {
                     await showNews(fromVoice);
                     return;
                 }
-                
+
                 // Check for YouTube/Music play commands - broader detection
                 if (lowerMsg.includes('play') || (lowerMsg.includes('youtube') && (lowerMsg.includes('search') || lowerMsg.includes('find')))) {
                     // Extract song/video name - remove command words only
@@ -828,94 +931,94 @@
                         return;
                     }
                 }
-                
+
                 // Check for cricket score commands
-                if ((lowerMsg.includes('cricket') || lowerMsg.includes('match') || lowerMsg.includes('score') || lowerMsg.includes('vs') || lowerMsg.includes('versus')) && 
+                if ((lowerMsg.includes('cricket') || lowerMsg.includes('match') || lowerMsg.includes('score') || lowerMsg.includes('vs') || lowerMsg.includes('versus')) &&
                     (lowerMsg.includes('live') || lowerMsg.includes('score') || lowerMsg.includes('match') || lowerMsg.includes('india') || lowerMsg.includes('ipl') || lowerMsg.includes('australia') || lowerMsg.includes('england') || lowerMsg.includes('pakistan') || lowerMsg.includes('new zealand') || lowerMsg.includes('south africa') || lowerMsg.includes('newzealand'))) {
                     await showCricketScores(fromVoice);
                     return;
                 }
-                
-            // Use authenticated endpoint if we have a token
-            const endpoint = access_token ? `${API_BASE}/chat/auth` : `${API_BASE}/chat`;
-            const payload = access_token ? {
-                message: message,
-                access_token: access_token,
-                session_id: session_id
-            } : { message: message };
 
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload)
-            });
+                // Use authenticated endpoint if we have a token
+                const endpoint = access_token ? `${API_BASE}/chat/auth` : `${API_BASE}/chat`;
+                const payload = access_token ? {
+                    message: message,
+                    access_token: access_token,
+                    session_id: session_id
+                } : { message: message };
 
-            if (!response.ok) {
-                throw new Error('Failed to get response');
-            }
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-            const data = await response.json();
-            
-            // Save session_id if it was created/returned
-            if (data.session_id) {
-                session_id = data.session_id;
-                localStorage.setItem('jarvis_session_id', session_id);
-            }
-            
-            // Remove loading
-            document.getElementById('loading')?.remove();
-            
-            // Add assistant message
-            addMessage(data.response, 'assistant');
-            
-            // Speak the response if voice mode is enabled
-            if (fromVoice && autoSpeak) {
-                await speakText(data.response);
-            }
-            
-        } catch (error) {
-            console.error('Error:', error);
-            document.getElementById('loading')?.remove();
-            const errorMsg = 'Sorry, I encountered an error. Please make sure the API server is running.';
-            addMessage(errorMsg, 'assistant');
-            if (fromVoice && autoSpeak) {
-                await speakText(errorMsg);
-            }
-        } finally {
-            sendBtn.disabled = false;
-        }
-    }
-
-    async function loadHistory() {
-        if (!access_token || !session_id) return;
-        
-        try {
-            const response = await fetch(`${API_BASE}/sessions/${session_id}/messages`, {
-                headers: {
-                    'Authorization': `Bearer ${access_token}`
+                if (!response.ok) {
+                    throw new Error('Failed to get response');
                 }
-            });
-            
-            if (response.ok) {
+
                 const data = await response.json();
-                if (data.messages && data.messages.length > 0) {
-                    const messagesDiv = document.getElementById('messages');
-                    // Clear initial greeting if history exists
-                    messagesDiv.innerHTML = '';
-                    
-                    data.messages.forEach(msg => {
-                        addMessage(msg.content, msg.role);
-                    });
-                    
-                    addMessage('📜 Chat history loaded.', 'assistant');
+
+                // Save session_id if it was created/returned
+                if (data.session_id) {
+                    session_id = data.session_id;
+                    localStorage.setItem('jarvis_session_id', session_id);
                 }
+
+                // Remove loading
+                document.getElementById('loading')?.remove();
+
+                // Add assistant message
+                addMessage(data.response, 'assistant');
+
+                // Speak the response if voice mode is enabled
+                if (fromVoice && autoSpeak) {
+                    await speakText(data.response);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading')?.remove();
+                const errorMsg = 'Sorry, I encountered an error. Please make sure the API server is running.';
+                addMessage(errorMsg, 'assistant');
+                if (fromVoice && autoSpeak) {
+                    await speakText(errorMsg);
+                }
+            } finally {
+                sendBtn.disabled = false;
             }
-        } catch (error) {
-            console.error('Failed to load history:', error);
         }
-    }
+
+        async function loadHistory() {
+            if (!access_token || !session_id) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/sessions/${session_id}/messages`, {
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.messages && data.messages.length > 0) {
+                        const messagesDiv = document.getElementById('messages');
+                        // Clear initial greeting if history exists
+                        messagesDiv.innerHTML = '';
+
+                        data.messages.forEach(msg => {
+                            addMessage(msg.content, msg.role);
+                        });
+
+                        addMessage('📜 Chat history loaded.', 'assistant');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load history:', error);
+            }
+        }
 
         async function playYouTubeVideo(query, voiceMode = false) {
             try {
@@ -962,23 +1065,23 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     if (data.matches && data.matches.length > 0) {
                         // Show first 3 matches in chat
                         let msg = `Found ${data.count} live cricket matches:\\n\\n`;
-                        
+
                         data.matches.slice(0, 3).forEach((match, index) => {
                             const teams = Array.isArray(match.teams) ? match.teams.join(' vs ') : 'Unknown teams';
                             const scoreDisplay = formatCricketScore(match.score);
                             msg += `${index + 1}. ${teams}\\n   ${scoreDisplay}\\n   Status: ${match.status}\\n\\n`;
                         });
-                        
+
                         msg += 'Check the sidebar for more details!';
                         addMessage(msg, 'assistant');
-                        
+
                         // Also update sidebar
                         await getCricketMatches();
-                        
+
                         if (voiceMode && autoSpeak) {
                             await speakText(`Found ${data.count} live cricket matches. Check the sidebar for scores.`);
                         }
@@ -1013,11 +1116,11 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     if (data.city && data.temperature) {
                         const msg = `Weather update for ${data.city}:\\n🌡️ Temperature: ${data.temperature}°C\\n☁️ Condition: ${data.condition}`;
                         addMessage(msg, 'assistant');
-                        
+
                         // Update sidebar widget too
                         const weatherInfo = document.getElementById('weatherInfo');
                         if (weatherInfo) {
@@ -1027,7 +1130,7 @@
                                 <p style="color: #666; font-size: 11px;">${data.condition}</p>
                             `;
                         }
-                        
+
                         if (voiceMode && autoSpeak) {
                             await speakText(`The weather in ${data.city} is ${data.temperature} degrees celsius with ${data.condition}.`);
                         }
@@ -1055,16 +1158,16 @@
         async function showNews(voiceMode = false) {
             try {
                 const response = await fetch(`${API_BASE}/news`);
-                
+
                 document.getElementById('loading')?.remove();
 
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     if (data.news && data.news.length > 0) {
                         // Show top 3 news headlines in chat
                         let msg = `Here are the top headlines:\\n\\n`;
-                        
+
                         data.news.slice(0, 3).forEach((article, index) => {
                             msg += `${index + 1}. ${article.title}\\n`;
                             if (article.description) {
@@ -1072,18 +1175,18 @@
                             }
                             msg += `\\n`;
                         });
-                        
+
                         msg += 'Check the sidebar for more news!';
                         addMessage(msg, 'assistant');
-                        
+
                         // Update sidebar widget too
                         const newsInfo = document.getElementById('newsInfo');
                         if (newsInfo) {
-                            newsInfo.innerHTML = data.news.slice(0, 5).map(article => 
+                            newsInfo.innerHTML = data.news.slice(0, 5).map(article =>
                                 `<p style="font-size: 11px; margin-bottom: 8px; color: #333;">• ${article.title}</p>`
                             ).join('');
                         }
-                        
+
                         if (voiceMode && autoSpeak) {
                             await speakText(`I've loaded the latest news headlines. Check the chat and sidebar for details.`);
                         }
@@ -1112,25 +1215,25 @@
             const messagesDiv = document.getElementById('messages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
-            
+
             const avatar = document.createElement('div');
             avatar.className = 'avatar';
             avatar.textContent = sender === 'user' ? 'U' : 'J';
-            
+
             const content = document.createElement('div');
             content.className = 'message-content';
-            
+
             // Handle newlines by converting to HTML
             if (text.includes('\\n')) {
                 content.innerHTML = text.replace(/\\n/g, '<br>');
             } else {
                 content.textContent = text;
             }
-            
+
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(content);
             messagesDiv.appendChild(messageDiv);
-            
+
             scrollToBottom();
         }
 
@@ -1143,6 +1246,7 @@
             currentLanguage = currentLanguage === 'en' ? 'hi' : 'en';
             const langName = currentLanguage === 'en' ? 'English' : 'Hindi';
             document.getElementById('currentLang').textContent = langName;
+            document.getElementById('currentLangMobile').textContent = langName;
 
             try {
                 await fetch(`${API_BASE}/language`, {
@@ -1152,7 +1256,7 @@
                     },
                     body: JSON.stringify({ language: currentLanguage })
                 });
-                
+
                 addMessage(`Language switched to ${langName}`, 'assistant');
             } catch (error) {
                 console.error('Error switching language:', error);
@@ -1163,11 +1267,12 @@
             autoSpeak = !autoSpeak;
             const status = autoSpeak ? 'ON' : 'OFF';
             document.getElementById('voiceStatus').textContent = status;
+            document.getElementById('voiceStatusMobile').textContent = status;
             addMessage(`Voice responses ${status}`, 'assistant');
         }
 
-        async function getWeather() {
-            const city = document.getElementById('cityInput').value.trim() || 'Delhi';
+        async function getWeather(cityOverride = null) {
+            const city = cityOverride || document.getElementById('cityInput').value.trim() || 'Delhi';
             const weatherInfo = document.getElementById('weatherInfo');
             weatherInfo.innerHTML = '<p style="color: #667eea;">Loading...</p>';
 
@@ -1181,7 +1286,7 @@
                 });
 
                 const data = await response.json();
-                
+
                 if (data.city && data.temperature) {
                     weatherInfo.innerHTML = `
                         <p style="font-weight: bold; color: #333;">${data.city}</p>
@@ -1205,13 +1310,13 @@
             try {
                 const response = await fetch(`${API_BASE}/news`);
                 const data = await response.json();
-                
+
                 if (data.news && data.news.length > 0) {
                     const topNews = data.news.slice(0, 3);
-                    newsInfo.innerHTML = topNews.map(article => 
+                    newsInfo.innerHTML = topNews.map(article =>
                         `<p style="font-size: 11px; margin-bottom: 8px; color: #333;">• ${article.title}</p>`
                     ).join('');
-                    
+
                     addMessage(`Top news headlines loaded. Check the sidebar for details.`, 'assistant');
                 } else {
                     newsInfo.innerHTML = '<p style="color: red;">No news available</p>';
@@ -1229,13 +1334,13 @@
             try {
                 const response = await fetch(`${API_BASE}/cricket/matches`);
                 const data = await response.json();
-                
+
                 if (data.matches && data.matches.length > 0) {
                     const topMatches = data.matches.slice(0, 5);
                     cricketInfo.innerHTML = topMatches.map(match => {
                         const teams = Array.isArray(match.teams) ? match.teams.join(' vs ') : 'Unknown teams';
                         const scoreDisplay = formatCricketScore(match.score);
-                        
+
                         return `
                             <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid #667eea;">
                                 <p style="font-size: 11px; font-weight: 600; color: #667eea; margin-bottom: 5px;">${teams}</p>
@@ -1244,7 +1349,7 @@
                             </div>
                         `;
                     }).join('');
-                    
+
                     addMessage(`Found ${data.count} live cricket matches! Check the sidebar for scores.`, 'assistant');
                 } else {
                     cricketInfo.innerHTML = '<p style="color: #999; font-size: 11px;">No live matches at the moment</p>';
@@ -1258,7 +1363,7 @@
 
         function formatCricketScore(score) {
             if (!score || score.length === 0) return 'Score not available';
-            
+
             if (Array.isArray(score)) {
                 return score.map(inning => {
                     if (inning.r !== undefined) {
@@ -1267,7 +1372,7 @@
                     return '';
                 }).filter(s => s).join(' | ');
             }
-            
+
             return typeof score === 'string' ? score : 'Score not available';
         }
 
@@ -1285,7 +1390,7 @@
                 });
 
                 const data = await response.json();
-                
+
                 if (data.videos && data.videos.length > 0) {
                     const topVideo = data.videos[0];
                     const url = topVideo.url;
@@ -1297,6 +1402,96 @@
             } catch (error) {
                 console.error('Error:', error);
                 addMessage('Error searching YouTube', 'assistant');
+            }
+        }
+
+        async function getGmailEmails(query = "") {
+            const gmailInfo = document.getElementById('gmailInfo');
+            gmailInfo.innerHTML = `<p style="color: #667eea;">${query ? 'Searching' : 'Fetching'} emails...</p>`;
+
+            try {
+                let url = `${API_BASE}/gmail?max_results=5&query=${encodeURIComponent(query)}`;
+                if (google_access_token) {
+                    url += `&google_token=${google_access_token}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.error) {
+                    gmailInfo.innerHTML = `<p style="color: #f44336; font-size: 11px;">${data.error}</p>`;
+                    return;
+                }
+
+                if (data.emails && data.emails.length > 0) {
+                    gmailInfo.innerHTML = data.emails.map(email => `
+                        <div onclick="showEmailDetail('${email.id}')" style="padding: 8px; border-bottom: 1px solid #eee; font-size: 11px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='white'">
+                            <p style="font-weight: 600; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${email.subject}</p>
+                            <p style="color: #666; font-size: 10px;">From: ${email.from}</p>
+                        </div>
+                    `).join('');
+
+                    if (query) {
+                        addMessage(`I've found ${data.count} emails matching "${query}". Check the sidebar!`, 'assistant');
+                        // Automatically open the first one if it's a specific request
+                        if (data.count === 1 || query.length > 3) {
+                            showEmailDetail(data.emails[0].id);
+                        }
+                    } else {
+                        addMessage(`I've found ${data.count} recent emails for you.`, 'assistant');
+                    }
+                } else {
+                    gmailInfo.innerHTML = '<p style="color: #999; font-size: 11px;">No emails found.</p>';
+                    if (query) addMessage(`I couldn't find any emails matching "${query}".`, 'assistant');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                gmailInfo.innerHTML = '<p style="color: red; font-size: 11px;">Error loading emails</p>';
+            }
+        }
+
+        async function showEmailDetail(emailId) {
+            const gmailInfo = document.getElementById('gmailInfo');
+            const originalContent = gmailInfo.innerHTML;
+            gmailInfo.innerHTML = '<p style="color: #667eea;">Opening email...</p>';
+
+            try {
+                let url = `${API_BASE}/gmail/${emailId}`;
+                if (google_access_token) {
+                    url += `&google_token=${google_access_token}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage(`Error opening email: ${data.error}`, 'assistant');
+                    gmailInfo.innerHTML = originalContent;
+                    return;
+                }
+
+                // Show a shortened version in chat
+                addMessage(`Email from ${data.from}:\n"${data.subject}"\n\n${data.snippet}...`, 'assistant');
+
+                // Show full detail in widget with a back button
+                gmailInfo.innerHTML = `
+                    <div style="font-size: 11px; color: #333;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <button onclick="getGmailEmails()" style="background: #667eea; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;">← Back</button>
+                            <span style="font-size: 9px; color: #999;">${data.date}</span>
+                        </div>
+                        <p style="font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid #eee; padding-bottom: 4px;">${data.subject}</p>
+                        <p style="color: #666; font-size: 10px; margin-bottom: 8px;">From: ${data.from}</p>
+                        <div style="background: #fdfdfd; padding: 8px; border: 1px solid #eee; border-radius: 4px; max-height: 250px; overflow-y: auto; white-space: pre-wrap; font-family: sans-serif; line-height: 1.4;">${data.body}</div>
+                    </div>
+                `;
+
+                if (autoSpeak) {
+                    speakText(`Opening email from ${data.from}. I've displayed the full content in your Gmail Inbox widget.`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                gmailInfo.innerHTML = originalContent;
             }
         }
 
@@ -1314,23 +1509,33 @@
 
         // Check API status on load
         window.onload = async () => {
-            // Try to initialize Supabase
-            try {
-                // Get Supabase credentials from constants or local storage
-                const savedUrl = localStorage.getItem('supabase_url') || 'https://roanczxtxlzovyesssge.supabase.co';
-                const savedKey = localStorage.getItem('supabase_anon_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvYW5jenh0eGx6b3Z5ZXNzc2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDc2MzIsImV4cCI6MjA4OTgyMzYzMn0.BXEIzm0MJqdDT1O6OkzeqdM2RoMy7SmTExxrq98e7sY';
-                
-                if (savedUrl && savedKey) {
-                    supabaseClient = supabase.createClient(savedUrl, savedKey);
-                    const { data: { session } } = await supabaseClient.auth.getSession();
-                    if (session) {
-                        access_token = session.access_token;
-                        console.log('Supabase session verified');
-                        await loadHistory();
+            // Try to initialize Supabase only if the script loaded
+            if (typeof supabase !== 'undefined') {
+                try {
+                    const savedUrl = localStorage.getItem('supabase_url') || 'https://roanczxtxlzovyesssge.supabase.co';
+                    const savedKey = localStorage.getItem('supabase_anon_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvYW5jenh0eGx6b3Z5ZXNzc2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDc2MzIsImV4cCI6MjA4OTgyMzYzMn0.BXEIzm0MJqdDT1O6OkzeqdM2RoMy7SmTExxrq98e7sY';
+
+                    if (savedUrl && savedKey) {
+                        supabaseClient = supabase.createClient(savedUrl, savedKey);
+                        // Safety check: ensure supabaseClient was successfully created
+                        if (supabaseClient) {
+                            const { data: { session } } = await supabaseClient.auth.getSession();
+                            if (session) {
+                                access_token = session.access_token;
+                                google_access_token = session.provider_token;
+                                console.log('Supabase session verified', google_access_token ? 'with Google token' : 'no Google token');
+                                await loadHistory();
+                            }
+                        } else {
+                            console.warn('Supabase client could not be created.');
+                        }
                     }
+                } catch (e) {
+                    console.warn('Supabase initialization failed:', e);
                 }
-            } catch (e) {
-                console.warn('Supabase initialization skipped:', e);
+            } else {
+                console.error('Supabase SDK failed to load. History and Auth will be disabled.');
+                addMessage('⚠️ Warning: Supabase (Auth/History) is unavailable. Using guest mode.', 'assistant');
             }
 
             try {
@@ -1344,4 +1549,5 @@
         };
     </script>
 </body>
+
 </html>

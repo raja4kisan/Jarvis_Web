@@ -1,8 +1,8 @@
-# Jarvis AI - FastAPI Backend for Cloud Deployment
+
 import os
 import datetime
 import requests
-from fastapi import FastAPI, HTTPException, Response, Request
+from fastapi import FastAPI, HTTPException, Response, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -110,9 +110,20 @@ def verify_token(token: str):
 # Gmail API Configuration
 GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
-def authenticate_gmail():
-    """Authenticate with Gmail API using OAuth2"""
+def authenticate_gmail(google_token=None):
+    """Authenticate with Gmail API using OAuth2 or a provided token"""
     creds = None
+    
+    # If a google_token is provided from the frontend, use it!
+    if google_token:
+        try:
+            creds = Credentials(google_token)
+            if creds and creds.valid:
+                logger.info("Using provided Google token for Gmail authentication")
+                return creds
+        except Exception as e:
+            logger.error(f"Error using provided google_token: {e}")
+
     token_path = 'token.json'
     credentials_path = 'credentials.json'
     
@@ -139,6 +150,11 @@ def authenticate_gmail():
                 logger.error("credentials.json not found. Please follow GMAIL_SETUP_GUIDE.md")
                 return None
             try:
+                # Railway/Cloud check: Cannot run interactive flow on server
+                if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PORT"):
+                    logger.error("Gmail token.json not found. For Railway, please run 'python main.py' locally once to generate token.json, then upload it to GitHub.")
+                    return None
+                    
                 flow = InstalledAppFlow.from_client_secrets_file(credentials_path, GMAIL_SCOPES)
                 creds = flow.run_local_server(port=0)
                 logger.info("Gmail OAuth flow completed successfully")
@@ -156,20 +172,26 @@ def authenticate_gmail():
     
     return creds
 
-def read_gmail_emails(max_results=10, query=""):
+def read_gmail_emails(max_results=10, query="", google_token=None):
     """Read emails from Gmail inbox"""
     try:
-        creds = authenticate_gmail()
+        creds = authenticate_gmail(google_token=google_token)
         if not creds:
-            return {"emails": [], "error": "Gmail authentication failed. Please follow GMAIL_SETUP_GUIDE.md"}
+            return {"emails": [], "error": "Gmail authentication failed. Please sign in with Google or provide a token."}
         
         service = build('gmail', 'v1', credentials=creds)
         
-        # Get messages
+        # Get messages - Perfectly match the 'Primary' tab (INBOX minus other categories)
+        # Note: category:primary sometimes excludes important un-categorized mail, so we exclude the rest.
+        primary_query = "label:INBOX -category:{social promotions updates forums}"
+        if query:
+            # If there's a specific search query, search WITHIN the Primary inbox
+            primary_query = f"{query} label:INBOX -category:{{social promotions updates forums}}"
+            
         results = service.users().messages().list(
             userId='me', 
             maxResults=max_results,
-            q=query
+            q=primary_query
         ).execute()
         
         messages = results.get('messages', [])
@@ -213,6 +235,55 @@ def read_gmail_emails(max_results=10, query=""):
         logger.error(f"Gmail API error: {e}")
         return {"emails": [], "error": str(e)}
 
+def get_gmail_detail(email_id, google_token=None):
+    """Get full detail of a specific email body"""
+    try:
+        creds = authenticate_gmail(google_token=google_token)
+        if not creds:
+            return {"error": "Gmail authentication failed"}
+        
+        service = build('gmail', 'v1', credentials=creds)
+        message = service.users().messages().get(userId='me', id=email_id, format='full').execute()
+        
+        # Extract headers
+        headers = message['payload']['headers']
+        subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
+        sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
+        date = next((h['value'] for h in headers if h['name'].lower() == 'date'), '')
+        
+        # Extract body
+        body = ""
+        payload = message.get('payload', {})
+        
+        def get_body_data(data):
+            if not data: return ""
+            return base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+
+        if 'parts' in payload:
+            for part in payload['parts']:
+                if part['mimeType'] == 'text/plain':
+                    body += get_body_data(part['body'].get('data', ''))
+                elif part['mimeType'] == 'text/html' and not body:
+                    # Fallback to HTML if no plain text
+                    body += get_body_data(part['body'].get('data', ''))
+        else:
+            body = get_body_data(payload.get('body', {}).get('data', ''))
+            
+        if not body:
+            body = message.get('snippet', 'No content available')
+            
+        return {
+            "id": email_id,
+            "subject": subject,
+            "from": sender,
+            "date": date,
+            "body": body,
+            "snippet": message.get('snippet', '')
+        }
+    except Exception as e:
+        logger.error(f"Gmail detail error: {e}")
+        return {"error": str(e)}
+
 @app.get("/")
 async def root():
     """Serve landing page with Google Sign-In"""
@@ -236,6 +307,11 @@ async def chat_interface():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Silence favicon 404s"""
+    return Response(status_code=204)
 
 # ============ AUTHENTICATION ENDPOINTS ============
 
@@ -295,13 +371,21 @@ async def create_session(auth_request: AuthRequest, session_data: NewSessionRequ
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sessions")
-async def get_sessions(access_token: str):
+async def get_sessions(access_token: Optional[str] = None, authorization: Optional[str] = Header(None)):
     """Get all chat sessions for authenticated user"""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase not configured")
     
     try:
-        user = verify_token(access_token)
+        # Get token from query or header
+        token = access_token
+        if not token and authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ")[1]
+            
+        if not token:
+            raise HTTPException(status_code=401, detail="Access token required")
+            
+        user = verify_token(token)
         
         # Get user's chat sessions
         response = supabase.table("chat_sessions")\
@@ -316,13 +400,21 @@ async def get_sessions(access_token: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sessions/{session_id}/messages")
-async def get_session_messages(session_id: str, access_token: str):
+async def get_session_messages(session_id: str, access_token: Optional[str] = None, authorization: Optional[str] = Header(None)):
     """Get all messages for a specific session"""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase not configured")
     
     try:
-        user = verify_token(access_token)
+        # Get token from query or header
+        token = access_token
+        if not token and authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ")[1]
+            
+        if not token:
+            raise HTTPException(status_code=401, detail="Access token required")
+            
+        user = verify_token(token)
         
         # Get session messages
         response = supabase.table("chat_messages")\
@@ -338,21 +430,40 @@ async def get_session_messages(session_id: str, access_token: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 async def get_ai_response(message: str, history: Optional[List[dict]] = None):
-    """Internal helper to call OpenAI/OpenRouter"""
+    """Internal helper to call OpenAI/OpenRouter with System Prompt"""
     try:
         # Check if API key is set
         if not openrouter_api_key:
             return {"response": "AI Error: OpenRouter API key not configured on Railway server. Please set OPENROUTER_API_KEY in Railway Settings > Variables.", "error": True}
 
-        # Use provided history or start new
-        messages = history if history else []
+        # Dynamic System Prompt to fix hallucinations (Date/Time) and add awareness
+        now = datetime.datetime.now()
+        system_prompt = (
+            f"You are Jarvis, a professional and highly capable AI assistant. "
+            f"Current Date: {now.strftime('%A, %B %d, %Y')}. "
+            f"Current Time: {now.strftime('%I:%M %p')}. "
+            "IMPORTANT: You have a specialized dashboard with interactive widgets for Weather, News, Cricket, and YouTube Search. "
+            "You are also fully integrated with the user's Gmail. "
+            "NEVER say you cannot access Gmail, Weather, or News. Instead, say 'I am checking that for you now' or 'I've updated the [feature] widget in your sidebar.' "
+            "If the user asks for emails, tell them you are fetching their inbox. If they ask for weather, say you are loading the weather widget. "
+            "Always be concise, professional, and helpful. Use the user's preference for widgets over text-only answers when appropriate."
+        )
+
+        # Build message list starting with system prompt
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add history (last 10 messages)
+        if history:
+            messages.extend(history)
+            
+        # Add current user message
         messages.append({"role": "user", "content": message})
             
         # Call OpenRouter API FAST
         response = client.chat.completions.create(
             model="openai/gpt-4o-mini",
             messages=messages,
-            max_tokens=200,  # Shorter for faster voice responses
+            max_tokens=250,  # Balanced for speed and detail
             temperature=0.7
         )
         
@@ -365,17 +476,34 @@ async def get_ai_response(message: str, history: Optional[List[dict]] = None):
 async def chat_with_auth(chat_request: ChatRequestAuth):
     """Authenticated chat - loads history from Supabase + background save"""
     try:
-        # Load history from Supabase if session_id is provided
-        history = []
-        if supabase and chat_request.session_id:
+        user = verify_token(chat_request.access_token)
+        session_id = chat_request.session_id
+        
+        # Use user-authenticated client for RLS tables
+        user_supabase = create_client(supabase_url, supabase_key)
+        user_supabase.postgrest.auth(chat_request.access_token)
+        
+        # 1. If no session_id, create a new session synchronously (FAST)
+        if user_supabase and not session_id:
             try:
-                # verify user first
-                user = verify_token(chat_request.access_token)
-                
+                session_response = user_supabase.table("chat_sessions").insert({
+                    "user_id": user.id,
+                    "title": chat_request.message[:50] + ("..." if len(chat_request.message) > 50 else "")
+                }).execute()
+                if session_response.data:
+                    session_id = session_response.data[0]["id"]
+                    logger.info(f"Created new session: {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to create new session: {e}")
+
+        # 2. Load history from Supabase if session_id is available
+        history = []
+        if user_supabase and session_id:
+            try:
                 # Get last 10 messages for this session
-                history_resp = supabase.table("chat_messages")\
+                history_resp = user_supabase.table("chat_messages")\
                     .select("role, content")\
-                    .eq("session_id", chat_request.session_id)\
+                    .eq("session_id", session_id)\
                     .eq("user_id", user.id)\
                     .order("created_at", desc=True)\
                     .limit(10)\
@@ -384,46 +512,33 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
                 # Reverse to get chronological order
                 raw_history = history_resp.data[::-1]
                 history = [{"role": m["role"], "content": m["content"]} for m in raw_history]
-                logger.info(f"Loaded {len(history)} messages from history for session {chat_request.session_id}")
+                logger.info(f"Loaded {len(history)} messages from history for session {session_id}")
             except Exception as e:
                 logger.warning(f"Failed to load chat history: {e}")
         
-        # Get response using history
+        # 3. Get response using history
         result = await get_ai_response(chat_request.message, history=history)
         
-        # Background save to Supabase
-        if supabase:
-            async def save_to_supabase():
+        # 4. Background save to Supabase (FIRE AND FORGET)
+        if user_supabase and session_id:
+            async def save_to_supabase_task(sid, msg, resp, token):
                 try:
-                    user = verify_token(chat_request.access_token)
-                    user_supabase = create_client(supabase_url, supabase_key)
-                    user_supabase.postgrest.auth(chat_request.access_token)
-                    
-                    # Create or use existing session
-                    session_id = chat_request.session_id
-                    if not session_id:
-                        session_response = user_supabase.table("chat_sessions").insert({
-                            "user_id": user.id,
-                            "title": chat_request.message[:50] + "..."
-                        }).execute()
-                        session_id = session_response.data[0]["id"]
-                    
-                    # Save messages
-                    user_supabase.table("chat_messages").insert([
-                        {"session_id": session_id, "user_id": user.id, "role": "user", "content": chat_request.message},
-                        {"session_id": session_id, "user_id": user.id, "role": "assistant", "content": result["response"]}
+                    # Create a temporary client for the background task to avoid closure issues
+                    bg_client = create_client(supabase_url, supabase_key)
+                    bg_client.postgrest.auth(token)
+                    bg_client.table("chat_messages").insert([
+                        {"session_id": sid, "user_id": user.id, "role": "user", "content": msg},
+                        {"session_id": sid, "user_id": user.id, "role": "assistant", "content": resp}
                     ]).execute()
-                    
-                    logger.info(f"Background save completed for session {session_id}")
+                    logger.info(f"Background save completed for session {sid}")
                 except Exception as e:
                     logger.error(f"Background Supabase save error: {e}")
             
-            # Fire and forget - don't wait!
-            asyncio.create_task(save_to_supabase())
+            asyncio.create_task(save_to_supabase_task(session_id, chat_request.message, result["response"], chat_request.access_token))
         
-        # Add session_id to result for client to save
-        if chat_request.session_id:
-            result["session_id"] = chat_request.session_id
+        # 5. Always return the session_id so frontend can track it
+        if session_id:
+            result["session_id"] = session_id
         
         return result
         
@@ -485,43 +600,61 @@ async def news_endpoint():
 
 @app.get("/cricket/matches")
 async def cricket_endpoint():
+    """Fetch live cricket scores from CricketData.org"""
+    import aiohttp
+    # Force the key provided by the user as fallback
+    key_to_use = cricket_api_key or "eb379d3b-5f05-4834-a755-412b75eb05bf"
+    
     try:
-        if not cricket_api_key:
-            return {"matches": [], "count": 0, "error": "Cricket API key not configured"}
+        url = f"https://api.cricketdata.org/v1/currentMatches?apikey={key_to_use}"
+        
+        # Add timeout, User-Agent, and use aiohttp for better async compatibility
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json"
+        }
+        try:
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        matches = []
+                        for match in data.get('data', [])[:5]:
+                            matches.append({
+                                "id": match.get("id"),
+                                "name": match.get("name"),
+                                "status": match.get("status"),
+                                "venue": match.get("venue"),
+                                "teams": [match.get("teamInfo", [{}])[0].get("name", "Team 1"), 
+                                         match.get("teamInfo", [{}])[1].get("name", "Team 2")] if len(match.get("teamInfo", [])) > 1 else ["Unknown", "Unknown"],
+                                "score": match.get("score", [])
+                            })
+                        return {"matches": matches, "count": len(matches)}
+                    else:
+                        return {"matches": [], "count": 0, "error": f"Cricket API error: {resp.status}"}
+        except Exception as e:
+            logger.warning(f"Cricket API unavailable (possible connection reset): {str(e)}")
+            return {"matches": [], "count": 0, "error": "Cricket API currently unavailable. Please check your key or try again later."}
             
-        url = f"https://api.cricketdata.org/v1/currentMatches?apikey={cricket_api_key}"
-        resp = requests.get(url)
-        if resp.status_code == 200:
-            data = resp.json()
-            matches = []
-            # Extract relevant info for the UI
-            for match in data.get('data', [])[:5]:
-                matches.append({
-                    "id": match.get("id"),
-                    "name": match.get("name"),
-                    "status": match.get("status"),
-                    "venue": match.get("venue"),
-                    "teams": [match.get("teamInfo", [{}])[0].get("name", "Team 1"), 
-                             match.get("teamInfo", [{}])[1].get("name", "Team 2")] if len(match.get("teamInfo", [])) > 1 else ["Unknown", "Unknown"],
-                    "score": match.get("score", [])
-                })
-            return {"matches": matches, "count": len(matches)}
-        else:
-            return {"matches": [], "count": 0, "error": f"Cricket API error: {resp.status_code}"}
     except Exception as e:
-        print(f"Cricket Error: {e}")
+        logger.error(f"Cricket endpoint error: {str(e)}")
         return {"matches": [], "count": 0, "error": str(e)}
 
 @app.get("/gmail")
-async def gmail_endpoint(max_results: int = 10, query: str = ""):
+async def gmail_endpoint(max_results: int = 10, query: str = "", google_token: Optional[str] = None):
     """Get Gmail emails - supports filters like 'is:unread' or 'from:someone@email.com'"""
     try:
-        logger.info(f"Gmail request: max_results={max_results}, query={query}")
-        result = read_gmail_emails(max_results=max_results, query=query)
+        logger.info(f"Gmail request: max_results={max_results}, query={query}, has_token={bool(google_token)}")
+        result = read_gmail_emails(max_results=max_results, query=query, google_token=google_token)
         return result
     except Exception as e:
         logger.error(f"Gmail endpoint error: {e}")
         return {"emails": [], "count": 0, "error": str(e)}
+
+@app.get("/gmail/{email_id}")
+async def gmail_detail_endpoint(email_id: str, google_token: Optional[str] = None):
+    """Get specific email detail"""
+    return get_gmail_detail(email_id, google_token=google_token)
 
 @app.post("/youtube/search")
 async def youtube_search(request: YoutubeRequest):
@@ -642,5 +775,13 @@ if os.path.exists(build_path):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    import sys
+    try:
+        port = int(os.environ.get("PORT", 8000))
+        logger.info(f"Starting Jarvis AI Backend on port {port}...")
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    except Exception as e:
+        logger.critical(f"FATAL SERVER ERROR: {e}")
+        # Print to stderr as well in case logger fails
+        print(f"CRITICAL: Server crashed: {e}", file=sys.stderr)
+        sys.exit(1)
