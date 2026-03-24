@@ -459,13 +459,48 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        #auth-overlay p {
+            margin: 10px 0;
+            font-size: 1.1rem;
+        }
+
+        #auth-error-msg {
+            color: #ff4d4d;
+            background: rgba(255, 77, 77, 0.1);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 77, 77, 0.3);
+            margin-top: 20px;
+            max-width: 80%;
+            text-align: center;
+            display: none;
+        }
+
+        #auth-retry-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            display: none;
+            transition: transform 0.2s;
+        }
+
+        #auth-retry-btn:hover {
+            transform: scale(1.05);
+        }
     </style>
 </head>
 
 <body>
     <div id="auth-overlay">
-        <div class="loader"></div>
-        <p>Verifying Identity...</p>
+        <div class="loader" id="auth-loader"></div>
+        <p id="auth-status">Verifying Identity...</p>
+        <div id="auth-error-msg"></div>
+        <button id="auth-retry-btn" onclick="window.location.href='/'">Back to Login</button>
     </div>
     <div class="container">
         <div class="header">
@@ -1562,7 +1597,27 @@
         // Check API status on load
         window.onload = async () => {
             const authOverlay = document.getElementById('auth-overlay');
+            const authStatus = document.getElementById('auth-status');
+            const authLoader = document.getElementById('auth-loader');
+            const authError = document.getElementById('auth-error-msg');
+            const authRetry = document.getElementById('auth-retry-btn');
             
+            // Handle OAuth Errors from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('error') || urlParams.has('error_description')) {
+                const errorName = urlParams.get('error') || 'Authentication Error';
+                const errorDesc = urlParams.get('error_description') || 'An unexpected error occurred during sign-in.';
+                
+                if (authLoader) authLoader.style.display = 'none';
+                if (authStatus) authStatus.innerText = 'Login Failed';
+                if (authError) {
+                    authError.innerText = `${errorName}: ${errorDesc}`;
+                    authError.style.display = 'block';
+                }
+                if (authRetry) authRetry.style.display = 'block';
+                return; // Stop initialization
+            }
+
             if (typeof supabase !== 'undefined') {
                 try {
                     const savedUrl = localStorage.getItem('supabase_url') || 'https://roanczxtxlzovyesssge.supabase.co';
