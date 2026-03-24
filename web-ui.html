@@ -1541,17 +1541,23 @@
                                 google_access_token = session.provider_token;
                                 console.log('Supabase session verified', google_access_token ? 'with Google token' : 'no Google token');
                                 await loadHistory();
+                            } else {
+                                // Redirection to signin page if not logged in
+                                console.log('No session found, redirecting to login...');
+                                window.location.href = '/';
                             }
                         } else {
                             console.warn('Supabase client could not be created.');
+                            window.location.href = '/';
                         }
                     }
                 } catch (e) {
                     console.warn('Supabase initialization failed:', e);
+                    window.location.href = '/';
                 }
             } else {
-                console.error('Supabase SDK failed to load. History and Auth will be disabled.');
-                addMessage('⚠️ Warning: Supabase (Auth/History) is unavailable. Using guest mode.', 'assistant');
+                console.error('Supabase SDK failed to load.');
+                window.location.href = '/';
             }
 
             try {
