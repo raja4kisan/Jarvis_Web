@@ -56,14 +56,15 @@ if supabase_url and supabase_key:
         supabase = create_client(supabase_url, supabase_key)
         logger.info("Supabase client initialized successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize Supabase: {e}")
+        logger.error(f"CRITICAL: Failed to initialize Supabase: {e}")
 else:
-    logger.warning("Supabase credentials not configured")
+    logger.warning("Supabase credentials not configured in environment variables. Authenticated features will fail.")
 
 # Models
 class ChatRequest(BaseModel):
     message: str
     language: Optional[str] = "en"
+    local_time: Optional[str] = None
 
 class WeatherRequest(BaseModel):
     city: str
@@ -84,6 +85,7 @@ class ChatRequestAuth(BaseModel):
     access_token: str
     session_id: Optional[str] = None
     language: Optional[str] = "en"
+    local_time: Optional[str] = None
 
 class NewSessionRequest(BaseModel):
     title: Optional[str] = "New Chat"
@@ -429,20 +431,25 @@ async def get_session_messages(session_id: str, access_token: Optional[str] = No
         logger.error(f"Get messages error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_ai_response(message: str, history: Optional[List[dict]] = None):
+async def get_ai_response(message: str, history: Optional[List[dict]] = None, local_time: Optional[str] = None):
     """Internal helper to call OpenAI/OpenRouter with System Prompt"""
     try:
         # Check if API key is set
         if not openrouter_api_key:
             return {"response": "AI Error: OpenRouter API key not configured on Railway server. Please set OPENROUTER_API_KEY in Railway Settings > Variables.", "error": True}
 
-        # Dynamic System Prompt to fix hallucinations (Date/Time) and add awareness
+        # Use current server time as fallback if local_time is missing
         now = datetime.datetime.now()
+        used_time = local_time if local_time else now.strftime('%I:%M %p')
+        used_date = now.strftime('%A, %B %d, %Y')
+
+        # Dynamic System Prompt to fix hallucinations (Date/Time) and add awareness
         system_prompt = (
             f"You are Jarvis, a professional and highly capable AI assistant. "
-            f"Current Date: {now.strftime('%A, %B %d, %Y')}. "
-            f"Current Time: {now.strftime('%I:%M %p')}. "
-            "IMPORTANT: You have a specialized dashboard with interactive widgets for Weather, News, Cricket, and YouTube Search. "
+            f"Current Date: {used_date}. "
+            f"Current Time: {used_time}. "
+            "IMPORTANT: Your greeting MUST reflect the user's local time (Morning/Afternoon/Evening). "
+            "You have a specialized dashboard with interactive widgets for Weather, News, Cricket, and YouTube Search. "
             "You are also fully integrated with the user's Gmail. "
             "NEVER say you cannot access Gmail, Weather, or News. Instead, say 'I am checking that for you now' or 'I've updated the [feature] widget in your sidebar.' "
             "If the user asks for emails, tell them you are fetching their inbox. If they ask for weather, say you are loading the weather widget. "
@@ -479,11 +486,27 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
         user = verify_token(chat_request.access_token)
         session_id = chat_request.session_id
         
+        # Check for Supabase credentials before creating auth client
+        if not supabase_url or not supabase_key:
+            logger.error("Supabase URL or Key missing in environment variables")
+            raise HTTPException(status_code=500, detail="Supabase configuration missing on server. Please set SUPABASE_URL and SUPABASE_KEY.")
+
         # Use user-authenticated client for RLS tables
         user_supabase = create_client(supabase_url, supabase_key)
         user_supabase.postgrest.auth(chat_request.access_token)
         
-        # 1. If no session_id, create a new session synchronously (FAST)
+        # 1. If session_id provided, verify ownership explicitly for isolation
+        if session_id:
+            try:
+                session_resp = user_supabase.table("chat_sessions").select("user_id").eq("id", session_id).execute()
+                if not session_resp.data or session_resp.data[0]["user_id"] != user.id:
+                    logger.warning(f"SECURITY: User {user.id} attempted to access unauthorized session {session_id}. Resetting session.")
+                    session_id = None # Force new session
+            except Exception as e:
+                logger.error(f"Session ownership check failed: {e}")
+                session_id = None
+
+        # 1.5 If no session_id, create a new session synchronously (FAST)
         if user_supabase and not session_id:
             try:
                 session_response = user_supabase.table("chat_sessions").insert({
@@ -520,8 +543,8 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
             except Exception as e:
                 logger.error(f"ERROR loading chat history: {e}")
         
-        # 3. Get response using history
-        result = await get_ai_response(chat_request.message, history=history)
+        # 3. Get response using history and local_time
+        result = await get_ai_response(chat_request.message, history=history, local_time=chat_request.local_time)
         
         # 4. Background save to Supabase (FIRE AND FORGET)
         if user_supabase and session_id:
@@ -557,9 +580,9 @@ async def chat_with_auth(chat_request: ChatRequestAuth):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(chat_request: ChatRequest):
     """ULTRA-FAST chat - unauthenticated"""
-    return await get_ai_response(request.message)
+    return await get_ai_response(chat_request.message, local_time=chat_request.local_time)
 
 @app.post("/weather")
 async def weather_endpoint(request: WeatherRequest):
@@ -725,27 +748,36 @@ async def youtube_play(request: YoutubeRequest):
 @app.post("/tts")
 async def tts_endpoint(request: TTSRequest):
     try:
+        logger.info(f"TTS Request received for language: {request.language}")
+        
         # Professional male voice: en-US-GuyNeural
         voice = "en-US-GuyNeural" if request.language == "en" else "hi-IN-MadhurNeural"
         
         # Clean text for TTS
         clean_text = request.message.replace("*", "").replace("#", "").strip()
+        if not clean_text:
+            logger.warning("TTS received empty message after cleaning")
+            return Response(content=b"", media_type="audio/mpeg")
+            
+        logger.info(f"Generating TTS for text: {clean_text[:50]}...")
         
         communicate = edge_tts.Communicate(clean_text, voice)
         
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
-            await communicate.save(tmp_file.name)
-            tmp_path = tmp_file.name
-            
-        with open(tmp_path, "rb") as f:
-            audio_data = f.read()
-            
-        os.unlink(tmp_path)  # Cleanup
+        # Use an in-memory buffer to avoid potential file system permission issues on Railway
+        import io
+        audio_stream = io.BytesIO()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_stream.write(chunk["data"])
+        
+        audio_data = audio_stream.getvalue()
+        logger.info(f"TTS generated successfully, size: {len(audio_data)} bytes")
         
         return Response(content=audio_data, media_type="audio/mpeg")
     except Exception as e:
-        print(f"TTS Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"TTS SERVER ERROR: {str(e)}", exc_info=True)
+        # Return a more descriptive error if possible
+        raise HTTPException(status_code=500, detail=f"TTS Generation Failed: {str(e)}")
 
 @app.get("/time")
 async def time_endpoint():

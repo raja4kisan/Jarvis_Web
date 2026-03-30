@@ -1022,8 +1022,12 @@
                 const payload = access_token ? {
                     message: message,
                     access_token: access_token,
-                    session_id: session_id
-                } : { message: message };
+                    session_id: session_id,
+                    local_time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+                } : { 
+                    message: message,
+                    local_time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+                };
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -1631,6 +1635,15 @@
                             console.log('Auth State Change:', event);
                             
                             if (session) {
+                                // Clear old session if user changed
+                                const lastUser = localStorage.getItem('jarvis_last_user');
+                                if (lastUser && lastUser !== session.user.id) {
+                                    console.log('User changed, clearing old session ID');
+                                    session_id = null;
+                                    localStorage.removeItem('jarvis_session_id');
+                                }
+                                localStorage.setItem('jarvis_last_user', session.user.id);
+
                                 access_token = session.access_token;
                                 google_access_token = session.provider_token;
                                 
